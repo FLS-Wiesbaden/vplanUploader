@@ -28,6 +28,9 @@ class Vertretungsplaner():
 	def getStatus(self):
 		return self.locked
 
+	def getIntervall(self):
+		return float(self.config.get("default", "intervall"))
+
 	def getRun(self):
 		return self.run
 
@@ -100,11 +103,20 @@ class Vertretungsplaner():
 		path = self.getWatchPath()
 		sep = os.sep
 		str = path+sep+file
+		tmp = False
 
 		print "This is what you want: ", str
-		tmp = self.parse_table(str)
-		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt hochgeladen.','info')
-		self.send_table(tmp)
+		try:
+			tmp = self.parse_table(str)
+		except Exception, detail:
+			tmp = False
+			print 'Err ', detail
+
+		if tmp != False:
+			self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt hochgeladen.','info')
+			self.send_table(tmp)
+		else:
+			print 'Datei gefunden, die keine Tabelle enthält!'
 
 	def loadConfig(self):
 		self.config = ConfigParser.ConfigParser()

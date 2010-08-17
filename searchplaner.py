@@ -11,7 +11,7 @@ class SearchPlaner():
 	
 	def loopSearch(self):
 		while self.plan.getRun():
-			time.sleep(300) #300 - 5 Minuten
+			time.sleep(self.plan.getIntervall()) #300 - 5 Minuten
 			if self.plan.getStatus() == False:
 				self.plan.getNewFiles()
 
