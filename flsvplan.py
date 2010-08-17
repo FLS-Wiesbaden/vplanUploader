@@ -42,6 +42,8 @@ class Vertretungsplaner():
 		return 0
 	
 	def getNewFiles(self):
+		print 'Starte suche...'
+
 		self.locked = True
 		pathToWatch = self.getWatchPath()
 
@@ -121,9 +123,10 @@ class Vertretungsplaner():
 	def loadConfig(self):
 		self.config = ConfigParser.ConfigParser()
 		self.config.read("config.ini")
-	@staticmethod
+
 	def bye(self):
 		print "Auf Wiedersehen!"
+		self.tray.sayGoodbye()
 		os._exit(0)
  	
 	def initTray(self):
@@ -131,7 +134,8 @@ class Vertretungsplaner():
 			#from SysTrayIcon import SysTrayIcon
 			from taskbardemo import DemoTaskbar, Taskbar
 			menu = (
-					('Beenden', None, Vertretungsplaner.bye),
+					('Planer hochladen', None, self.getNewFiles),
+					('Beenden', None, self.bye),
 				)
 			self.tray = DemoTaskbar(self,'fls_logo.ico', 'FLS Vertretungsplaner', menu)
 			#self.tray = thread.start_new_thread(DemoTaskbar, (self,'./fls_logo.ico', 'FLS Vertretungsplaner', menu))
