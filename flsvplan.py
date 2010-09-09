@@ -90,8 +90,14 @@ class Vertretungsplaner():
 		data = json.dumps(table)
 		data = base64.encodestring(data).replace('\n', '')
 		values = {'apikey': base64.encodestring(self.getAPIKey()).replace('\n', ''), 'data': data}
+		
+		httpproxy = "http://"+self.config.get("proxy", "phost")+":"+self.config.get("proxy", "pport")
+		proxies = {
+				"http" : httpproxy
+			}
+
 		try:
-			d = urllib.urlencode(values)
+			d = urllib.urlencode(values, None, proxies)
 			req = urllib2.Request(self.getSendURL(), d)
 			response = urllib2.urlopen(req)
 			code = response.read()
