@@ -4,17 +4,17 @@ import py2exe
 class Target:
     def __init__(self, **kw):
         self.__dict__.update(kw)
-        self.version = "0.1"
+        self.version = "0.1.1"
         self.company_name = "Friedrich-List-Schule Wiesbaden"
-        self.copyright = "Homepage AG FLS Wiesbaden"
+        self.copyright = "Website-Team FLS Wiesbaden"
         self.name = "FLS Vertretungsplaner"
-	self.author = "Lukas Schreiner [Homepage AG]"
-	self.author_email = "lukas.schreiner@gmail.com"
+	self.author = "Lukas Schreiner"
+	self.author_email = "lukas.schreiner@fls-wiesbaden.de"
 	self.url = "http://fls-wiesbaden.de"
 
 
 flsvplan = Target(
-		description = "Vertretungsplaner FLS Wiesbaden",
+		description = "Vertretungsplaner Friedrich-List-Schule Wiesbaden",
 		script = "flsvplan.py",
 		icon_resources = [(1, "fls_logo.ico")],
 		dest_base = "flsvplan")

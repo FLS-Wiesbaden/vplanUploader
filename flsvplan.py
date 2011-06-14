@@ -90,16 +90,23 @@ class Vertretungsplaner():
 		data = json.dumps(table)
 		data = base64.encodestring(data).replace('\n', '')
 		values = {'apikey': base64.encodestring(self.getAPIKey()).replace('\n', ''), 'data': data}
-		
-		httpproxy = "http://"+self.config.get("proxy", "phost")+":"+self.config.get("proxy", "pport")
-		proxies = {
-				"http" : httpproxy
-			}
+		d = urllib.urlencode(values)
 
+        opener = None
+        if self.config.get('proxy', 'enable'):
+    		httpproxy = "http://"+self.config.get("proxy", "phost")+":"+self.config.get("proxy", "pport")
+	    	proxies = {
+		    		"http" : httpproxy
+		    }
+            
+            opener = urllib2.build_opener(urllib2.ProxyHandler(proxies))
+            urllib2.install_opener(opener)
+        else:
+            opener = urrlib2.build_opener(urllib2.HTTPHandler)
+            urllib2.install_opener(opener)
+        
 		try:
-			d = urllib.urlencode(values, None, proxies)
-			req = urllib2.Request(self.getSendURL(), d)
-			response = urllib2.urlopen(req)
+            response = opener.open(self.getSendURL(), d)
 			code = response.read()
 			self.showToolTip('Vertretungsplan hochgeladen','Die Datei wurde erfolgreich hochgeladen.','info')
 			print code
@@ -145,7 +152,7 @@ class Vertretungsplaner():
 				)
 			self.tray = DemoTaskbar(self,'fls_logo.ico', 'FLS Vertretungsplaner', menu)
 			#self.tray = thread.start_new_thread(DemoTaskbar, (self,'./fls_logo.ico', 'FLS Vertretungsplaner', menu))
-			self.tray.showInfo('Vertretungsplaner startet...', 'Bei Problemen wenden Sie sich bitte an die Homepage AG der Friedrich-List-Schule Wiesbaden.')
+			self.tray.showInfo('Vertretungsplaner startet...', 'Bei Problemen wenden Sie sich bitte an das Website-Team der Friedrich-List-Schule Wiesbaden.')
 			
 	def __init__(self):
 		self.loadConfig()
