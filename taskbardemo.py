@@ -9,20 +9,20 @@ class Taskbar:
     FIRST_ID = 1023
 
     def __init__(self, par, menu_options):
-	self.par = par
+        self.par = par
         self.visible = 0
-	# MENU
-	self._next_action_id = self.FIRST_ID
+        # MENU
+        self._next_action_id = self.FIRST_ID
         self.menu_actions_by_id = set()
         self.menu_options = self._add_ids_to_menu_options(list(menu_options))
         self.menu_actions_by_id = dict(self.menu_actions_by_id)
         del self._next_action_id
-	
+
 
         message_map = {
             win32con.WM_DESTROY: self.onDestroy,
             win32con.WM_USER+20 : self.onTaskbarNotify,
-	    win32con.WM_COMMAND: self.command,
+            win32con.WM_COMMAND: self.command,
         }
         # Register the Window class.
         wc = win32gui.WNDCLASS()
@@ -129,7 +129,7 @@ class Taskbar:
 
     def show(self):
         """Display the taskbar icon"""
-	print 'Im here and will show me now!'
+        print 'Im here and will show me now!'
         flags = win32gui.NIF_ICON | win32gui.NIF_MESSAGE
         if self.tooltip is not None:
             flags |= win32gui.NIF_TIP
@@ -143,15 +143,15 @@ class Taskbar:
 
     def hide(self):
         """Hide the taskbar icon"""
-	print 'someone doesnt like me :-('
+        print 'someone doesnt like me :-('
         if self.visible:
             nid = (self.hwnd, 0)
             win32gui.Shell_NotifyIcon(win32gui.NIM_DELETE, nid)
         self.visible = 0
         
     def onDestroy(self, hwnd, msg, wparam, lparam):
-	print "someone wants to destroy me!"
-	pass
+        print "someone wants to destroy me!"
+        pass
 
     def onTaskbarNotify(self, hwnd, msg, wparam, lparam):
         if lparam == win32con.WM_LBUTTONUP:
@@ -171,7 +171,7 @@ class Taskbar:
         pass
     def onRightClick(self):
         """Override in subclasses"""
-	self.show_menu()
+        self.show_menu()
         #pass
 
 class DemoTaskbar(Taskbar):
@@ -181,39 +181,39 @@ class DemoTaskbar(Taskbar):
 
     def __init__(self, par, logo, title, menu):
         Taskbar.__init__(self, par, menu)
-	self.par = par
-	self.refresh_icon(logo)
-	self.setIcon(self.hicon)
+        self.par = par
+        self.refresh_icon(logo)
+        self.setIcon(self.hicon)
         self.show()
 
     def sayGoodbye(self):
-	self.hide()
-	self.par.setRun(False)
-	win32gui.PostQuitMessage(0)
+        self.hide()
+        self.par.setRun(False)
+        win32gui.PostQuitMessage(0)
 
     def onDestroy(self, hwnd, msg, wparam, lparam):
         self.hide()
-	self.par.setRun(False)
+        self.par.setRun(False)
         win32gui.PostQuitMessage(0) # Terminate the app.
 
     def refresh_icon(self, logo):
     	# Try and find a custom icon
-        hinst = win32gui.GetModuleHandle(None)
-	self.icon = logo
-        if os.path.isfile(self.icon):
+    	hinst = win32gui.GetModuleHandle(None)
+    	self.icon = logo
+    	if os.path.isfile(self.icon):
             icon_flags = win32con.LR_LOADFROMFILE | win32con.LR_DEFAULTSIZE
             self.hicon = win32gui.LoadImage(hinst, self.icon,win32con.IMAGE_ICON,0,0,icon_flags)
         else:
-	    print "Can't find icon file - using default."
-	    self.hicon = win32gui.LoadIcon(0, win32con.IDI_APPLICATION)
+            print "Can't find icon file - using default."
+            self.hicon = win32gui.LoadIcon(0, win32con.IDI_APPLICATION)
 
     def onClick(self):
         print 'you clicked - now i will call getNewFiles'
-	self.par.getNewFiles()
+        self.par.getNewFiles()
 
     def onDoubleClick(self):
         print "you double clicked, bye!"
-	self.par.bye()
+        self.par.bye()
         win32gui.PostQuitMessage(0)
 
     #def onRightClick(self):
