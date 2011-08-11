@@ -9,12 +9,6 @@ from table_parser import *
 from searchplaner import *
 
 class Vertretungsplaner():
-	config = None
-	tray = None
-	search = None
-	before = None
-	locked = False
-	run = True
 
 	def getWatchPath(self):
 		return self.config.get("default", "path")
@@ -27,6 +21,15 @@ class Vertretungsplaner():
 
 	def getStatus(self):
 		return self.locked
+
+	def getOption(self, name):
+		if self.config.has_option('options', name):
+			if self.config.get('options', name) in ['True', True]:
+				return True
+			else:
+				return False
+		else:
+			return False
 
 	def getIntervall(self):
 		return float(self.config.get("default", "intervall"))
@@ -121,7 +124,7 @@ class Vertretungsplaner():
 
 		return data
 
-	def send_table(self, table):
+	def send_table(self, table, file):
 		# jau.. send it to the top url!
 		table = self.convert(table)
 		data = json.dumps(table)
@@ -149,10 +152,31 @@ class Vertretungsplaner():
 			response = opener.open(self.getSendURL(), d)
 			code = response.read()
 			self.showToolTip('Vertretungsplan hochgeladen','Die Datei wurde erfolgreich hochgeladen.','info')
+			# now move the file and save an backup. Also delete the older one.
+			self.moveAndDeleteVPlanFile(file)
+
+			print 'Erfolgreich hochgeladen.'
 			print code
 		except Exception, detail:
 			self.showToolTip('Uploadfehler!','Die Datei konnte nicht hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
+			print "Fehler aufgetreten."
 			print "Err ", detail
+
+		print 'Unknown Error ??'
+
+	def moveAndDeleteVPlanFile(self, file):
+		# file => Actual file (move to lastFile)
+		# self.lastFile => last File (delete)
+		if os.path.exists(file) and self.lastFile != '':
+			# delete
+			os.remove(self.lastFile)
+			print 'Datei %s entfernt' % (self.lastFile)
+		# move
+		file_new = "%s.backup" % (file)
+		print 'Move %s to %s for backup.' % (file, file_new)
+		os.rename(file, file_new)
+		
+		self.lastFile = file_new
 
 	def handlingPlaner(self,file,empty):
 		path = self.getWatchPath()
@@ -169,7 +193,7 @@ class Vertretungsplaner():
 
 		if tmp != False:
 			self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt hochgeladen.','info')
-			self.send_table(tmp)
+			self.send_table(tmp, file)
 		else:
 			print 'Datei gefunden, die keine Tabelle enthaelt!'
 
@@ -193,9 +217,22 @@ class Vertretungsplaner():
 			self.tray.showInfo('Vertretungsplaner startet...', 'Bei Problemen wenden Sie sich bitte an das Website-Team der Friedrich-List-Schule Wiesbaden.')
 			
 	def __init__(self):
+		self.lastFile = ''
+		self.run = True
+		self.config = None
+		self.tray = None
+		self.search = None
+		self.before = None
+		self.locked = False
+
 		self.loadConfig()
 		self.initTray()
 		self.initPlan()
+
+	def __destruct__(self):
+		if os.path.exists(self.lastFile):
+			os.remove(self.lastFile)
+			self.lastFile = ''
 
 app = Vertretungsplaner()
 win32gui.PumpMessages()
