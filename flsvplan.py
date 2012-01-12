@@ -4,7 +4,7 @@
 # @author Lukas Schreiner
 #
 
-import urllib, urllib2, thread, time, os, json, codecs, base64, ConfigParser, win32gui
+import urllib, urllib2, thread, time, os, json, codecs, base64, ConfigParser, win32gui, shutil
 from table_parser import *
 from searchplaner import *
 
@@ -71,7 +71,10 @@ class Vertretungsplaner():
 		if added: 
 			for f in added: 
 				f = f.strip()
-				thread.start_new_thread(self.handlingPlaner, (f,""))
+				if f.endswith('.html') or f.endswith('.htm'):
+					thread.start_new_thread(self.handlingPlaner, (f,""))
+				else:
+					print('"%s" will be ignored.' % f)
 		if removed: print "\nRemoved files: ", ", ".join(removed)
 		self.before = after
 		self.locked = False
@@ -84,7 +87,7 @@ class Vertretungsplaner():
 		self.search = thread.start_new_thread(SearchPlaner, (self,))
 
 	def parse_table(self,file):
-		f = urllib.urlopen(file)
+		f = open(file, 'r')
 		p = TableParser()
 		p.feed(f.read())
 		f.close()
@@ -147,9 +150,15 @@ class Vertretungsplaner():
 			print 'Proxy is deactivated'
 			opener = urllib2.build_opener(urllib2.HTTPHandler)
 			urllib2.install_opener(opener)
-			
+
+		request = urllib2.Request(self.getSendURL(), d)
+		if self.config.has_option("siteauth", "enable") and self.config.get("siteauth", "enable") == 'True':
+			authstr = base64.encodestring('%s:%s' % (self.config.get("siteauth", "username"),
+													 self.config.get("siteauth", "password"))).replace('\n', '')
+			request.add_header("Authorization", "Basic %s" % authstr)
+
 		try:
-			response = opener.open(self.getSendURL(), d)
+			response = opener.open(request)
 			code = response.read()
 			self.showToolTip('Vertretungsplan hochgeladen','Die Datei wurde erfolgreich hochgeladen.','info')
 			# now move the file and save an backup. Also delete the older one.
@@ -162,19 +171,32 @@ class Vertretungsplaner():
 			print "Fehler aufgetreten."
 			print "Err ", detail
 
-		print 'Unknown Error ??'
-
 	def moveAndDeleteVPlanFile(self, file):
 		# file => Actual file (move to lastFile)
 		# self.lastFile => last File (delete)
-		if os.path.exists(file) and self.lastFile != '':
+		path = self.getWatchPath()+os.sep+file
+		if os.path.exists(path) and self.lastFile != '':
 			# delete
 			os.remove(self.lastFile)
 			print 'Datei %s entfernt' % (self.lastFile)
 		# move
-		file_new = "%s.backup" % (file)
-		print 'Move %s to %s for backup.' % (file, file_new)
-		os.rename(file, file_new)
+		file_new = "%s.backup" % (path)
+		if self.config.get('options','backupFiles') == 'True':
+			if self.config.get('options', 'backupFolder') != 'False':
+				backdir = self.config.get('options', 'backupFolder')
+				if backdir[-1:] is not '/':
+					backdir = '%s%s' % (backdir, os.sep)
+				file_new = '%s%s%s%s.backup' % (self.getWatchPath(), os.sep, backdir, file)
+				# before: check if folder eixsts.
+				backdir = '%s%s%s' % (self.getWatchPath(), os.sep, backdir)
+				if not os.path.exists(backdir):
+					os.makedirs(backdir)
+			print 'Copy %s to %s for backup.' % (path, file_new)
+			shutil.copyfile(path, file_new)
+
+		if self.config.get('options', 'delUpFile') == 'True':
+			print 'Delete uploaded file %s' % (path)
+			os.remove(path)
 		
 		self.lastFile = file_new
 

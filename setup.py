@@ -4,7 +4,7 @@ import py2exe
 class Target:
     def __init__(self, **kw):
         self.__dict__.update(kw)
-        self.version = "0.1.1"
+        self.version = "0.2"
         self.company_name = "Friedrich-List-Schule Wiesbaden"
         self.copyright = "Website-Team FLS Wiesbaden"
         self.name = "FLS Vertretungsplaner"
