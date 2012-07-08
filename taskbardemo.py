@@ -3,6 +3,7 @@
 # messages printed.  Right click for balloon tip.  Double click to exit.
 # original version of this demo available at http://www.itamarst.org/software/
 import win32api, win32con, win32gui, win32gui_struct, os, time
+import collections
 
 class Taskbar:
     par = None
@@ -48,7 +49,7 @@ class Taskbar:
         result = []
         for menu_option in menu_options:
             option_text, option_icon, option_action = menu_option
-            if callable(option_action) or option_action in self.SPECIAL_ACTIONS:
+            if isinstance(option_action, collections.Callable) or option_action in self.SPECIAL_ACTIONS:
                 self.menu_actions_by_id.add((self._next_action_id, option_action))
                 result.append(menu_option + (self._next_action_id,))
             elif non_string_iterable(option_action):
@@ -57,7 +58,7 @@ class Taskbar:
                                self._add_ids_to_menu_options(option_action),
                                self._next_action_id))
             else:
-                print 'Unknown item', option_text, option_icon, option_action
+                print('Unknown item', option_text, option_icon, option_action)
             self._next_action_id += 1
         return result
 
@@ -129,7 +130,7 @@ class Taskbar:
 
     def show(self):
         """Display the taskbar icon"""
-        print 'Im here and will show me now!'
+        print('Im here and will show me now!')
         flags = win32gui.NIF_ICON | win32gui.NIF_MESSAGE
         if self.tooltip is not None:
             flags |= win32gui.NIF_TIP
@@ -143,14 +144,14 @@ class Taskbar:
 
     def hide(self):
         """Hide the taskbar icon"""
-        print 'someone doesnt like me :-('
+        print('someone doesnt like me :-(')
         if self.visible:
             nid = (self.hwnd, 0)
             win32gui.Shell_NotifyIcon(win32gui.NIM_DELETE, nid)
         self.visible = 0
         
     def onDestroy(self, hwnd, msg, wparam, lparam):
-        print "someone wants to destroy me!"
+        print("someone wants to destroy me!")
         pass
 
     def onTaskbarNotify(self, hwnd, msg, wparam, lparam):
@@ -204,15 +205,15 @@ class DemoTaskbar(Taskbar):
             icon_flags = win32con.LR_LOADFROMFILE | win32con.LR_DEFAULTSIZE
             self.hicon = win32gui.LoadImage(hinst, self.icon,win32con.IMAGE_ICON,0,0,icon_flags)
         else:
-            print "Can't find icon file - using default."
+            print("Can't find icon file - using default.")
             self.hicon = win32gui.LoadIcon(0, win32con.IDI_APPLICATION)
 
     def onClick(self):
-        print 'you clicked - now i will call getNewFiles'
+        print('you clicked - now i will call getNewFiles')
         self.par.getNewFiles()
 
     def onDoubleClick(self):
-        print "you double clicked, bye!"
+        print("you double clicked, bye!")
         self.par.bye()
         win32gui.PostQuitMessage(0)
 
@@ -229,4 +230,4 @@ def non_string_iterable(obj):
     except TypeError:
         return False
     else:
-        return not isinstance(obj, basestring)
+        return not isinstance(obj, str)

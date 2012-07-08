@@ -1,260 +1,317 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # @author Lukas Schreiner
 #
 
-import urllib, urllib2, thread, time, os, json, codecs, base64, ConfigParser, win32gui, shutil
-from table_parser import *
+import urllib.request, urllib.parse, urllib.error, traceback, sys
+import time, os, json, codecs, base64, configparser, shutil
+from TableParser import TableParser
 from searchplaner import *
+from threading import Thread
 
-class Vertretungsplaner():
+if os.name in 'nt':
+    import win32gui
 
-	def getWatchPath(self):
-		return self.config.get("default", "path")
+class Vertretungsplaner:
 
-	def getSendURL(self):
-		return self.config.get("default", "url")
-	
-	def getAPIKey(self):
-		return self.config.get("default", "api")
+    def getWatchPath(self):
+        return self.config.get("default", "path")
 
-	def getStatus(self):
-		return self.locked
+    def getSendURL(self):
+        return self.config.get("default", "url")
 
-	def getOption(self, name):
-		if self.config.has_option('options', name):
-			if self.config.get('options', name) in ['True', True]:
-				return True
-			else:
-				return False
-		else:
-			return False
+    def getAPIKey(self):
+        return self.config.get("default", "api")
 
-	def getIntervall(self):
-		return float(self.config.get("default", "intervall"))
+    def getStatus(self):
+        return self.locked
 
-	def isProxyEnabled(self):
-		if self.config.get('proxy', 'enable') == 'True' or \
-		self.config.get('proxy', 'enable') is True:
-			return True
-		else:
-			return False
+    def getOption(self, name):
+        if self.config.has_option('options', name):
+            if self.config.get('options', name) in ['True', True]:
+                return True
+            else:
+                return False
+        else:
+            return False
 
-	def filesAreUTF8(self):
-		if self.config.get('default', 'utf8') == 'True' or \
-		self.config.get('default', 'utf8') is True:
-			return True
-		else:
-			return False
+    def getIntervall(self):
+        return float(self.config.get("default", "intervall"))
 
-	def getRun(self):
-		return self.run
+    def isProxyEnabled(self):
+        if self.config.get('proxy', 'enable') == 'True' or \
+                self.config.get('proxy', 'enable') is True:
+            return True
+        else:
+            return False
 
-	def setRun(self, run):
-		self.run = run
+    def filesAreUTF8(self):
+        if self.config.get('default', 'utf8') == 'True' or \
+                self.config.get('default', 'utf8') is True:
+            return True
+        else:
+            return False
 
-	def showToolTip(self,title,msg,msgtype):
-		self.tray.showInfo(title, msg)
-		return 0
-	
-	def getNewFiles(self):
-		print 'Starte suche...'
+    def getRun(self):
+        return self.run
 
-		self.locked = True
-		pathToWatch = self.getWatchPath()
+    def setRun(self, run):
+        self.run = run
 
-		after = dict([(f, None) for f in os.listdir(pathToWatch)])
-		added = [f for f in after if not f in self.before]
-		removed = [f for f in self.before if not f in after]
-		if added: print "\nAdded new Files: ", ", ".join(added)
-		if added: 
-			for f in added: 
-				f = f.strip()
-				if f.endswith('.html') or f.endswith('.htm'):
-					thread.start_new_thread(self.handlingPlaner, (f,""))
-				else:
-					print('"%s" will be ignored.' % f)
-		if removed: print "\nRemoved files: ", ", ".join(removed)
-		self.before = after
-		self.locked = False
+    def showToolTip(self,title,msg,msgtype):
+        self.tray.showInfo(title, msg)
+        return 0
 
-	def initPlan(self):
-		pathToWatch = self.getWatchPath()
-		self.before = dict([(f, None) for f in os.listdir(pathToWatch)])
+    def getNewFiles(self):
+        print('Starte suche...')
 
-		# Now start Looping
-		self.search = thread.start_new_thread(SearchPlaner, (self,))
+        self.locked = True
+        pathToWatch = self.getWatchPath()
 
-	def parse_table(self,file):
-		f = open(file, 'r')
-		p = TableParser()
-		p.feed(f.read())
-		f.close()
-		del p.doc[0][:3]
+        after = dict([(f, None) for f in os.listdir(pathToWatch)])
+        added = [f for f in after if not f in self.before]
+        removed = [f for f in self.before if not f in after]
+        if added: 
+            print("\nAdded new Files: ", ", ".join(added))
+            for f in added: 
+                f = f.strip()
+                if f.lower().endswith('.html') or f.lower().endswith('.htm'):
+                    Thread(target=self.handlingPlaner, args=(f,)).start()
+                elif f.lower().endswith('.pdf'):
+                    Thread(target=self.handleCanceledPlan, args=(f, )).start()
+                else:
+                    print('"%s" will be ignored.' % f)
 
-		return p.doc
+        if removed: 
+            print("\nRemoved files: ", ", ".join(removed))
 
-	def convert(self, table):
-		for i,v in enumerate(table):
-			for j,w in enumerate(table[i]):
-				for k,x in enumerate(table[i][j]):
-					if self.filesAreUTF8():
-						table[i][j][k] = table[i][j][k].decode("utf-8")
-					else:
-						table[i][j][k] = table[i][j][k].decode("iso-8859-1")
-						
-					table[i][j][k] = self.replaceUmlaute(table[i][j][k])
-					table[i][j][k] = table[i][j][k].encode("utf-8")
-	
-		return table
+        self.before = after
+        self.locked = False
 
-	def replaceUmlaute(self, data):
-		#ue
-		data = data.replace(unichr(252), '&uuml;')
-		data = data.replace(unichr(220), '&Uuml;')
+    def initPlan(self):
+        pathToWatch = self.getWatchPath()
+        self.before = dict([(f, None) for f in os.listdir(pathToWatch)])
 
-		#ae
-		data = data.replace(unichr(228), '&auml;')
-		data = data.replace(unichr(196), '&Auml;')
+        # Now start Looping
+        self.search = Thread(target=SearchPlaner, args=(self,)).start()
 
-		#oe
-		data = data.replace(unichr(246), '&ouml;')
-		data = data.replace(unichr(214), '&Ouml;')
+    def loadFile(self,absFile):
+        f = open(absFile, 'rb')
+        dtaContents = f.read()
+        f.close()
 
-		#ss
-		data = data.replace(unichr(223), '&szlig;')
+        try:
+            dtaContents = dtaContents.decode('iso-8859-1')
+        except:
+            try:
+                dtaContents = dtaContents.decode('utf-8')
+            except:
+                print('Nothing possible to decode!')
 
-		return data
+        return dtaContents
 
-	def send_table(self, table, file):
-		# jau.. send it to the top url!
-		table = self.convert(table)
-		data = json.dumps(table)
-		data = base64.encodestring(data).replace('\n', '')
-		values = {'apikey': base64.encodestring(self.getAPIKey()).replace('\n', ''), 'data': data}
-		d = urllib.urlencode(values)
 
-		opener = None
-		if self.isProxyEnabled():
-			print 'Proxy is activated'
-			httpproxy = "http://"+self.config.get("proxy", "phost")+":"+self.config.get("proxy", "pport")
-			proxies = {
-				"http" : httpproxy
-			}
-			
-			opener = urllib2.build_opener(urllib2.ProxyHandler(proxies))
-			urllib2.install_opener(opener)
-			
-		else:
-			print 'Proxy is deactivated'
-			opener = urllib2.build_opener(urllib2.HTTPHandler)
-			urllib2.install_opener(opener)
+    def parse_table(self, dtaContents):
+        p = TableParser(dtaContents)
 
-		request = urllib2.Request(self.getSendURL(), d)
-		if self.config.has_option("siteauth", "enable") and self.config.get("siteauth", "enable") == 'True':
-			authstr = base64.encodestring('%s:%s' % (self.config.get("siteauth", "username"),
-													 self.config.get("siteauth", "password"))).replace('\n', '')
-			request.add_header("Authorization", "Basic %s" % authstr)
+        return p.getTable()
 
-		try:
-			response = opener.open(request)
-			code = response.read()
-			self.showToolTip('Vertretungsplan hochgeladen','Die Datei wurde erfolgreich hochgeladen.','info')
-			# now move the file and save an backup. Also delete the older one.
-			self.moveAndDeleteVPlanFile(file)
+    def convert(self, table):
+        for i,v in enumerate(table):
+            for k,x in enumerate(v):
+                if self.filesAreUTF8():
+                    table[i][k] = x.decode("utf-8")
+                else:
+                    table[i][k] = x.decode("iso-8859-1")
 
-			print 'Erfolgreich hochgeladen.'
-			print code
-		except Exception, detail:
-			self.showToolTip('Uploadfehler!','Die Datei konnte nicht hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
-			print "Fehler aufgetreten."
-			print "Err ", detail
+                table[i][k] = self.replaceUmlaute(x)
+                table[i][k] = x.encode("utf-8")
 
-	def moveAndDeleteVPlanFile(self, file):
-		# file => Actual file (move to lastFile)
-		# self.lastFile => last File (delete)
-		path = self.getWatchPath()+os.sep+file
-		if os.path.exists(path) and self.lastFile != '':
-			# delete
-			os.remove(self.lastFile)
-			print 'Datei %s entfernt' % (self.lastFile)
-		# move
-		file_new = "%s.backup" % (path)
-		if self.config.get('options','backupFiles') == 'True':
-			if self.config.get('options', 'backupFolder') != 'False':
-				backdir = self.config.get('options', 'backupFolder')
-				if backdir[-1:] is not '/':
-					backdir = '%s%s' % (backdir, os.sep)
-				file_new = '%s%s%s%s.backup' % (self.getWatchPath(), os.sep, backdir, file)
-				# before: check if folder eixsts.
-				backdir = '%s%s%s' % (self.getWatchPath(), os.sep, backdir)
-				if not os.path.exists(backdir):
-					os.makedirs(backdir)
-			print 'Copy %s to %s for backup.' % (path, file_new)
-			shutil.copyfile(path, file_new)
+        return table
 
-		if self.config.get('options', 'delUpFile') == 'True':
-			print 'Delete uploaded file %s' % (path)
-			os.remove(path)
-		
-		self.lastFile = file_new
+    def replaceUmlaute(self, data):
+        #ue
+        data = data.replace(chr(252), '&uuml;')
+        data = data.replace(chr(220), '&Uuml;')
 
-	def handlingPlaner(self,file,empty):
-		path = self.getWatchPath()
-		sep = os.sep
-		str = path+sep+file
-		tmp = False
+        #ae
+        data = data.replace(chr(228), '&auml;')
+        data = data.replace(chr(196), '&Auml;')
 
-		print "\nThis is what you want: ", str
-		try:
-			tmp = self.parse_table(str)
-		except Exception, detail:
-			tmp = False
-			print 'Err ', detail
+        #oe
+        data = data.replace(chr(246), '&ouml;')
+        data = data.replace(chr(214), '&Ouml;')
 
-		if tmp != False:
-			self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt hochgeladen.','info')
-			self.send_table(tmp, file)
-		else:
-			print 'Datei gefunden, die keine Tabelle enthaelt!'
+        #ss
+        data = data.replace(chr(223), '&szlig;')
 
-	def loadConfig(self):
-		self.config = ConfigParser.ConfigParser()
-		self.config.read("config.ini")
+        return data
 
-	def bye(self):
-		print "Auf Wiedersehen!"
-		self.tray.sayGoodbye()
-		os._exit(0)
+    def send_table(self, table, absFile, planType, convert = True):
+        # jau.. send it to the top url!
+        if convert:
+            table = self.convert(table)
 
-	def initTray(self):
-		if os.name in "nt":
-			from taskbardemo import DemoTaskbar, Taskbar
-			menu = (
-					('Planer hochladen', None, self.getNewFiles),
-					('Beenden', None, self.bye),
-				)
-			self.tray = DemoTaskbar(self,'fls_logo.ico', 'FLS Vertretungsplaner', menu)
-			self.tray.showInfo('Vertretungsplaner startet...', 'Bei Problemen wenden Sie sich bitte an das Website-Team der Friedrich-List-Schule Wiesbaden.')
-			
-	def __init__(self):
-		self.lastFile = ''
-		self.run = True
-		self.config = None
-		self.tray = None
-		self.search = None
-		self.before = None
-		self.locked = False
+        data = json.dumps(table)
+        data = base64.encodestring(data).replace('\n', '')
+        values = {
+                'apikey': base64.encodestring(self.getAPIKey()).replace('\n', ''), 
+                'data': data,
+                'type': planType
+            }
+        d = urllib.parse.urlencode(values)
 
-		self.loadConfig()
-		self.initTray()
-		self.initPlan()
+        opener = None
+        if self.isProxyEnabled():
+            print('Proxy is activated')
+            httpproxy = "http://"+self.config.get("proxy", "phost")+":"+self.config.get("proxy", "pport")
+            proxies = {
+                    "http" : httpproxy
+                    }
 
-	def __destruct__(self):
-		if os.path.exists(self.lastFile):
-			os.remove(self.lastFile)
-			self.lastFile = ''
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
+            urllib.request.install_opener(opener)
+
+        else:
+            print('Proxy is deactivated')
+            opener = urllib.request.build_opener(urllib.request.HTTPHandler)
+            urllib.request.install_opener(opener)
+
+        request = urllib.request.Request(self.getSendURL(), d)
+        if self.config.has_option("siteauth", "enable") and self.config.get("siteauth", "enable") == 'True':
+            authstr = base64.encodestring(
+                    '%s:%s' % (
+                        self.config.get("siteauth", "username"),
+                        self.config.get("siteauth", "password")
+                    )
+                ).replace('\n', '')
+            request.add_header("Authorization", "Basic %s" % authstr)
+
+        try:
+            response = opener.open(request)
+            code = response.read()
+            self.showToolTip('Vertretungsplan hochgeladen','Die Datei wurde erfolgreich hochgeladen.','info')
+            # now move the file and save an backup. Also delete the older one.
+            self.moveAndDeleteVPlanFile(absFile)
+
+            print('Erfolgreich hochgeladen.')
+            print(code)
+        except Exception as detail:
+            self.showToolTip('Uploadfehler!','Die Datei konnte nicht hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
+            print("Fehler aufgetreten.")
+            print("Err ", detail)
+
+    def moveAndDeleteVPlanFile(self, file):
+        # file => Actual file (move to lastFile)
+        # self.lastFile => last File (delete)
+        path = self.getWatchPath()+os.sep+file
+        if os.path.exists(path) and self.lastFile != '':
+            # delete
+            os.remove(self.lastFile)
+            print('Datei %s entfernt' % (self.lastFile))
+        # move
+        file_new = "%s.backup" % (path)
+        if self.config.get('options','backupFiles') == 'True':
+            if self.config.get('options', 'backupFolder') != 'False':
+                backdir = self.config.get('options', 'backupFolder')
+                if backdir[-1:] is not '/':
+                    backdir = '%s%s' % (backdir, os.sep)
+                file_new = '%s%s%s%s.backup' % (self.getWatchPath(), os.sep, backdir, file)
+                # before: check if folder eixsts.
+                backdir = '%s%s%s' % (self.getWatchPath(), os.sep, backdir)
+                if not os.path.exists(backdir):
+                    os.makedirs(backdir)
+                print('Copy %s to %s for backup.' % (path, file_new))
+                shutil.copyfile(path, file_new)
+
+        if self.config.get('options', 'delUpFile') == 'True':
+            print('Delete uploaded file %s' % (path))
+            os.remove(path)
+
+        self.lastFile = file_new
+
+    def handlingPlaner(self,fileName):
+        path = self.getWatchPath()
+        sep = os.sep
+        absPath = path+sep+fileName
+        tmp = False
+
+        print("\nThis is what you want: ", absPath)
+        try:
+            tmp = self.loadFile(absPath)
+            tmp = self.parse_table(tmp)
+        except Exception as detail:
+            tmp = False
+            print('Err ', detail)
+            print('-'*60)
+            traceback.print_exc(file=sys.stdout)
+            print('-'*60)
+            
+        if tmp != False:
+            self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt hochgeladen.','info')
+            self.send_table(tmp, absPath, 'fillin')
+        else:
+            print('Datei gefunden, die keine Tabelle enthaelt!')
+
+    def handlingCanceledPlan(self,fileName):
+        path = self.getWatchPath()
+        sep = os.sep
+        absPath = path+sep+fileName
+        tmp = False
+
+        print("\nThis is what you want: ", absPath)
+        try:
+            tmp = self.loadFile(absPath)
+            tmp = self.parse_canceledPlan(tmp)
+        except Exception as detail:
+            tmp = False
+            print('Err ', detail)
+
+        if tmp != False:
+            self.showToolTip('Neuer Vertretungsplan','Es wurde ein neues PDF-Dokument gefunden! Es wird jetzt hochgeladen.','info')
+            self.send_table(tmp, absPath, 'canceled', convert=False)
+        else:
+            print('Datei gefunden, die keine Infos enthaelt!')
+
+    def loadConfig(self):
+        self.config = configparser.ConfigParser()
+        self.config.read("config.ini")
+
+    def bye(self):
+        print("Auf Wiedersehen!")
+        self.tray.sayGoodbye()
+        os._exit(0)
+
+    def initTray(self):
+        if os.name in "nt":
+            from taskbardemo import DemoTaskbar, Taskbar
+            menu = (
+                    ('Planer hochladen', None, self.getNewFiles),
+                    ('Beenden', None, self.bye),
+                )
+            self.tray = DemoTaskbar(self,'fls_logo.ico', 'FLS Vertretungsplaner', menu)
+            self.tray.showInfo('Vertretungsplaner startet...', 'Bei Problemen wenden Sie sich bitte an das Website-Team der Friedrich-List-Schule Wiesbaden.')
+
+    def __init__(self):
+        self.lastFile = ''
+        self.run = True
+        self.config = None
+        self.tray = None
+        self.search = None
+        self.before = None
+        self.locked = False
+
+        self.loadConfig()
+        self.initTray()
+        self.initPlan()
+
+    def __del__(self):
+        if os.path.exists(self.lastFile):
+            os.remove(self.lastFile)
+            self.lastFile = ''
 
 app = Vertretungsplaner()
-win32gui.PumpMessages()
+
+if os.name in 'nt':
+    win32gui.PumpMessages()
