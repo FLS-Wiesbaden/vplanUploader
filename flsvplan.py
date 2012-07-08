@@ -6,6 +6,7 @@
 
 import urllib.request, urllib.parse, urllib.error, traceback, sys
 import time, os, json, codecs, base64, configparser, shutil
+import layout_scanner
 from TableParser import TableParser
 from searchplaner import *
 from threading import Thread
@@ -60,7 +61,8 @@ class Vertretungsplaner:
         self.run = run
 
     def showToolTip(self,title,msg,msgtype):
-        self.tray.showInfo(title, msg)
+        if self.tray is not None:
+            self.tray.showInfo(title, msg)
         return 0
 
     def getNewFiles(self):
@@ -72,18 +74,18 @@ class Vertretungsplaner:
         after = dict([(f, None) for f in os.listdir(pathToWatch)])
         added = [f for f in after if not f in self.before]
         removed = [f for f in self.before if not f in after]
-        if added: 
+        if added:
             print("\nAdded new Files: ", ", ".join(added))
-            for f in added: 
+            for f in added:
                 f = f.strip()
                 if f.lower().endswith('.html') or f.lower().endswith('.htm'):
                     Thread(target=self.handlingPlaner, args=(f,)).start()
                 elif f.lower().endswith('.pdf'):
-                    Thread(target=self.handleCanceledPlan, args=(f, )).start()
+                    Thread(target=self.handlingCanceledPlan, args=(f, )).start()
                 else:
                     print('"%s" will be ignored.' % f)
 
-        if removed: 
+        if removed:
             print("\nRemoved files: ", ", ".join(removed))
 
         self.before = after
@@ -91,6 +93,9 @@ class Vertretungsplaner:
 
     def initPlan(self):
         pathToWatch = self.getWatchPath()
+        if not os.path.exists(pathToWatch):
+            os.makedirs(pathToWatch)
+
         self.before = dict([(f, None) for f in os.listdir(pathToWatch)])
 
         # Now start Looping
@@ -156,7 +161,7 @@ class Vertretungsplaner:
         data = json.dumps(table)
         data = base64.encodestring(data).replace('\n', '')
         values = {
-                'apikey': base64.encodestring(self.getAPIKey()).replace('\n', ''), 
+                'apikey': base64.encodestring(self.getAPIKey()).replace('\n', ''),
                 'data': data,
                 'type': planType
             }
@@ -247,7 +252,7 @@ class Vertretungsplaner:
             print('-'*60)
             traceback.print_exc(file=sys.stdout)
             print('-'*60)
-            
+
         if tmp != False:
             self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt hochgeladen.','info')
             self.send_table(tmp, absPath, 'fillin')
@@ -261,18 +266,68 @@ class Vertretungsplaner:
         tmp = False
 
         print("\nThis is what you want: ", absPath)
-        try:
-            tmp = self.loadFile(absPath)
-            tmp = self.parse_canceledPlan(tmp)
-        except Exception as detail:
-            tmp = False
-            print('Err ', detail)
+        #try:
+        tmp = self.parse_canceledPlan(absPath)
+        #except Exception as detail:
+        #    tmp = False
+        #    print('Err ', detail)
 
         if tmp != False:
+            print('Infos gefunden!')
             self.showToolTip('Neuer Vertretungsplan','Es wurde ein neues PDF-Dokument gefunden! Es wird jetzt hochgeladen.','info')
             self.send_table(tmp, absPath, 'canceled', convert=False)
         else:
             print('Datei gefunden, die keine Infos enthaelt!')
+
+    def parse_canceledPlan(self, absPath):
+        resultObj = {'stand': int(time.time()), 'plan': {}}
+        pages = layout_scanner.get_pages(absPath)
+        if pages is None:
+            pages = []
+
+        for f in pages:
+            every_line = f.split('\n')
+            day, month, year = every_line[0].split(' ')[1].split('.')
+            date = '%s-%s-%s' % (year, month, day)
+            resultObj['plan'][date] = []
+            # it starts at 2
+            if len(every_line) > 2 and every_line[2].startswith('Fehlende Klassen'):
+                # yes - we got it - read until the next empty line...
+                classes = []
+                ending = False
+                i = 2
+                while not ending and i < len(every_line):
+                    if len(every_line[i].strip()) <= 0:
+                        ending = True
+                    else:
+                        classes.append(every_line[i].strip())
+                    i += 1
+
+                # now we saved all things. It will be difficult now, because we have to split all things.
+                # 1. remove text
+                classes[0] = classes[0].replace('Fehlende Klassen:', '')
+                classes = ' '.join(classes).split(';')
+                for k,v in enumerate(classes):
+                    v = v.strip().split(' ')
+                    info = {'number': '', 'info': ''}
+                    info['number'] = v[0]
+                    del(v[0])
+                    del(v[0])
+                    del(v[0])
+
+                    if len(v) > 1:
+                        v[1] = v[1].replace(')','')
+                    elif len(v) > 0:
+                        v[0] = v[0].replace(')','')
+
+                    info['info'] = ''.join(v)
+
+                    classes[k] = info
+
+                resultObj['plan'][date] = classes
+
+        print(resultObj)
+        return resultObj
 
     def loadConfig(self):
         self.config = configparser.ConfigParser()
