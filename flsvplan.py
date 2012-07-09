@@ -125,9 +125,10 @@ class Vertretungsplaner:
     def convert(self, table):
         for i,v in enumerate(table):
             for k,x in enumerate(v):
-                if self.filesAreUTF8():
+                if self.filesAreUTF8() and type(x).__name__ != 'str':
                     table[i][k] = x.decode("utf-8")
-                else:
+                elif type(x).__name__ != 'str':
+                    print(type(x).__name__)
                     table[i][k] = x.decode("iso-8859-1")
 
                 table[i][k] = self.replaceUmlaute(x)
