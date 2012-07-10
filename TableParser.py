@@ -18,8 +18,8 @@ class TableParser:
                 elif '\xa0' in cellStr:
                     col[k] = ''
                 else:
-                    col[k] = v.string
+                    col[k] = str(v.string)
             records.append(col)
-        
+
         return records
 

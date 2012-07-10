@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# -*- coding: utf8 -*-
 #
 # @author Lukas Schreiner
 #
@@ -110,7 +110,7 @@ class Vertretungsplaner:
             dtaContents = dtaContents.decode('iso-8859-1')
         except:
             try:
-                dtaContents = dtaContents.decode('utf-8')
+                dtaContents = dtaContents.decode('utf8')
             except:
                 print('Nothing possible to decode!')
 
@@ -119,20 +119,20 @@ class Vertretungsplaner:
 
     def parse_table(self, dtaContents):
         p = TableParser(dtaContents)
-
-        return p.getTable()
+        table = p.getTable()
+        return table[3:]
 
     def convert(self, table):
         for i,v in enumerate(table):
             for k,x in enumerate(v):
                 if self.filesAreUTF8() and type(x).__name__ != 'str':
-                    table[i][k] = x.decode("utf-8")
+                    table[i][k] = x.decode("utf8")
                 elif type(x).__name__ != 'str':
                     print(type(x).__name__)
                     table[i][k] = x.decode("iso-8859-1")
 
-                table[i][k] = self.replaceUmlaute(x)
-                table[i][k] = x.encode("utf-8")
+                #table[i][k] = self.replaceUmlaute(x)
+                #table[i][k] = x.encode("utf8")
 
         return table
 
@@ -159,10 +159,10 @@ class Vertretungsplaner:
         if convert:
             table = self.convert(table)
 
-        data = json.dumps(table)
-        data = base64.encodestring(data).replace('\n', '')
+        data = json.dumps(table).encode('utf8')
+        data = base64.encodestring(data).decode('utf8').replace('\n', '')
         values = {
-                'apikey': base64.encodestring(self.getAPIKey()).replace('\n', ''),
+                'apikey': base64.encodestring(self.getAPIKey().encode('utf8')).decode('utf8').replace('\n', ''),
                 'data': data,
                 'type': planType
             }
@@ -184,14 +184,14 @@ class Vertretungsplaner:
             opener = urllib.request.build_opener(urllib.request.HTTPHandler)
             urllib.request.install_opener(opener)
 
-        request = urllib.request.Request(self.getSendURL(), d)
+        request = urllib.request.Request(self.getSendURL(), d.encode('utf8'))
         if self.config.has_option("siteauth", "enable") and self.config.get("siteauth", "enable") == 'True':
             authstr = base64.encodestring(
-                    '%s:%s' % (
+                    ('%s:%s' % (
                         self.config.get("siteauth", "username"),
                         self.config.get("siteauth", "password")
-                    )
-                ).replace('\n', '')
+                    )).encode('utf8')
+                ).decode('utf8').replace('\n', '')
             request.add_header("Authorization", "Basic %s" % authstr)
 
         try:
@@ -208,10 +208,10 @@ class Vertretungsplaner:
             print("Fehler aufgetreten.")
             print("Err ", detail)
 
-    def moveAndDeleteVPlanFile(self, file):
+    def moveAndDeleteVPlanFile(self, absFile):
         # file => Actual file (move to lastFile)
         # self.lastFile => last File (delete)
-        path = self.getWatchPath()+os.sep+file
+        path = absFile
         if os.path.exists(path) and self.lastFile != '':
             # delete
             os.remove(self.lastFile)
