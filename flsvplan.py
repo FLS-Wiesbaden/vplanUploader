@@ -10,6 +10,7 @@ import layout_scanner
 from TableParser import TableParser
 from searchplaner import *
 from threading import Thread
+from Printer import Printer
 
 if os.name in 'nt':
     import win32gui
@@ -202,7 +203,6 @@ class Vertretungsplaner:
             self.moveAndDeleteVPlanFile(absFile)
 
             print('Erfolgreich hochgeladen.')
-            print(code)
         except Exception as detail:
             self.showToolTip('Uploadfehler!','Die Datei konnte nicht hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
             print("Fehler aufgetreten.")
@@ -267,11 +267,11 @@ class Vertretungsplaner:
         tmp = False
 
         print("\nThis is what you want: ", absPath)
-        #try:
-        tmp = self.parse_canceledPlan(absPath)
-        #except Exception as detail:
-        #    tmp = False
-        #    print('Err ', detail)
+        try:
+            tmp = self.parse_canceledPlan(absPath)
+        except Exception as detail:
+            tmp = False
+            print('Err ', detail)
 
         if tmp != False:
             print('Infos gefunden!')
@@ -327,7 +327,6 @@ class Vertretungsplaner:
 
                 resultObj['plan'][date] = classes
 
-        print(resultObj)
         return resultObj
 
     def loadConfig(self):
