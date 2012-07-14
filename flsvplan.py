@@ -6,8 +6,8 @@
 
 import urllib.request, urllib.parse, urllib.error, traceback, sys
 import time, os, json, codecs, base64, configparser, shutil
-import layout_scanner
 from TableParser import TableParser
+from layout_scanner import *
 from searchplaner import *
 from threading import Thread
 from Printer import Printer
@@ -221,7 +221,7 @@ class Vertretungsplaner:
         if self.config.get('options','backupFiles') == 'True':
             if self.config.get('options', 'backupFolder') != 'False':
                 backdir = self.config.get('options', 'backupFolder')
-                if backdir[-1:] is not '/':
+                if backdir[-1:] is not os.sep:
                     backdir = '%s%s' % (backdir, os.sep)
                 file_new = '%s%s%s%s.backup' % (self.getWatchPath(), os.sep, backdir, file)
                 # before: check if folder eixsts.
@@ -231,7 +231,7 @@ class Vertretungsplaner:
                 print('Copy %s to %s for backup.' % (path, file_new))
                 shutil.copyfile(path, file_new)
 
-        if self.config.get('options', 'delUpFile') == 'True':
+        if self.config.get('options', 'delUpFile') == 'True' and os.path.exists(path):
             print('Delete uploaded file %s' % (path))
             os.remove(path)
 
@@ -282,7 +282,7 @@ class Vertretungsplaner:
 
     def parse_canceledPlan(self, absPath):
         resultObj = {'stand': int(time.time()), 'plan': {}}
-        pages = layout_scanner.get_pages(absPath)
+        pages = get_pages(absPath)
         if pages is None:
             pages = []
 

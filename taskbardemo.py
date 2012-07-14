@@ -199,14 +199,14 @@ class DemoTaskbar(Taskbar):
 
     def refresh_icon(self, logo):
     	# Try and find a custom icon
-    	hinst = win32gui.GetModuleHandle(None)
-    	self.icon = logo
-#		if os.path.isfile(self.icon):
-#			icon_flags = win32con.LR_LOADFROMFILE | win32con.LR_DEFAULTSIZE
-#			self.hicon = win32gui.LoadImage(hinst, self.icon,win32con.IMAGE_ICON,0,0,icon_flags)
-#		else:
-#			print("Can't find icon file - using default.")
-#			self.hicon = win32gui.LoadIcon(0, win32con.IDI_APPLICATION)
+        hinst = win32gui.GetModuleHandle(None)
+        self.icon = logo
+        if os.path.isfile(self.icon):
+            icon_flags = win32con.LR_LOADFROMFILE | win32con.LR_DEFAULTSIZE
+            self.hicon = win32gui.LoadImage(hinst, self.icon,win32con.IMAGE_ICON,0,0,icon_flags)
+        else:
+            print('Cant find icon file - using default.')
+            self.hicon = win32gui.LoadIcon(0, win32con.IDI_APPLICATION)
 
     def onClick(self):
         print('you clicked - now i will call getNewFiles')
