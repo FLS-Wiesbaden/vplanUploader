@@ -17,15 +17,18 @@ files = [
 	]
 
 base = None
+exeName = 'flsvplan'
+exeDebug = 'flsvplan_debug'
 if sys.platform == "win32":
     base = "Win32GUI"
+    exeName = exeName + '.exe'
+    exeDebug = exeDebug + '.exe'
 
 flsvplan = Executable(
 	"flsvplan.py",
 	base = base,
 	icon = "fls_logo.ico",
-	#targetDir = "flsvplan",
-        targetName = 'flsvplan',
+        targetName = exeName,
 	copyDependentFiles = True,
 	appendScriptToExe = True,
 	appendScriptToLibrary = True,
@@ -36,8 +39,7 @@ flsvplan_debug = Executable(
 	"flsvplan.py",
 	base = None,
 	icon = "fls_logo.ico",
-	#targetDir = "dist/",
-        targetName = 'flsvplan_debug',
+        targetName = exeDebug,
 	copyDependentFiles = True,
 	appendScriptToExe = True,
 	appendScriptToLibrary = True,
