@@ -24,18 +24,20 @@ flsvplan = Executable(
 	"flsvplan.py",
 	base = base,
 	icon = "fls_logo.ico",
-	targetDir = "flsvplan",
+	#targetDir = "flsvplan",
+        targetName = 'flsvplan',
 	copyDependentFiles = True,
 	appendScriptToExe = True,
 	appendScriptToLibrary = True,
-	compress = False
+	compress = True
 	)
 
 flsvplan_debug = Executable(
 	"flsvplan.py",
 	base = None,
 	icon = "fls_logo.ico",
-	targetDir = "flsvplan_debug",
+	#targetDir = "dist/",
+        targetName = 'flsvplan_debug',
 	copyDependentFiles = True,
 	appendScriptToExe = True,
 	appendScriptToLibrary = True,
