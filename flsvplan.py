@@ -11,6 +11,7 @@ from layout_scanner import *
 from searchplaner import *
 from threading import Thread
 from Printer import Printer
+from pprint import pprint
 
 if os.name in 'nt':
     import win32gui
@@ -269,6 +270,9 @@ class Vertretungsplaner:
         print("\nThis is what you want: ", absPath)
         try:
             tmp = self.parse_canceledPlan(absPath)
+            pprint(tmp)
+            for k,v in tmp['plan'].items():
+                print('Anzahl abbestellter Klassen fuer Tag %s: %i' % (k, len(tmp['plan'][k])))
         except Exception as detail:
             tmp = False
             print('Err ', detail)
@@ -287,47 +291,107 @@ class Vertretungsplaner:
             pages = []
 
         for f in pages:
-            every_line = f.split('\n')
-            day, month, year = every_line[0].split(' ')[1].split('.')
-            date = '%s-%s-%s' % (year, month, day)
-            resultObj['plan'][date] = []
-            # it starts at 2
-            if len(every_line) > 2 and every_line[2].startswith('Fehlende Klassen'):
-                # yes - we got it - read until the next empty line...
-                classes = []
-                ending = False
-                i = 2
-                while not ending and i < len(every_line):
-                    if len(every_line[i].strip()) <= 0:
-                        ending = True
-                    else:
-                        classes.append(every_line[i].strip())
-                    i += 1
-
-                # now we saved all things. It will be difficult now, because we have to split all things.
-                # 1. remove text
-                classes[0] = classes[0].replace('Fehlende Klassen:', '')
-                classes = ' '.join(classes).split(';')
-                for k,v in enumerate(classes):
-                    v = v.strip().split(' ')
-                    info = {'number': '', 'info': ''}
-                    info['number'] = v[0]
-                    del(v[0])
-                    del(v[0])
-                    del(v[0])
-
-                    if len(v) > 1:
-                        v[1] = v[1].replace(')','')
-                    elif len(v) > 0:
-                        v[0] = v[0].replace(')','')
-
-                    info['info'] = ''.join(v)
-
-                    classes[k] = info
-
-                resultObj['plan'][date] = classes
+            retList = self.parse_page(f)
+            for k,v in retList.items():
+                resultObj['plan'][k] = v
 
         return resultObj
+
+    def parse_page(self, page):
+        planDays = []
+        cancelled = []
+        result = {}
+        days = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
+
+        lines = page.split('\n')
+
+        # check for existent lines
+        if len(lines) <= 0:
+            return result
+
+        # check whether the first entry is an date
+        date = weekday = day = month = year = None
+        try:
+            weekday, date = lines[0].strip().split(' ')
+            day, month, year = date.split('.')
+        except Exception:
+            # there was an error: this means bye, bye!
+            return result
+
+        # now check weekday
+        if weekday is None or weekday not in days:
+            return result
+
+        # now gets the dates
+        pos = 0
+        while not lines[pos].strip().startswith('Fehlende Klassen') and pos < len(lines):
+            try:
+                weekday, date = lines[pos].strip().split(' ')
+                day, month, year = date.split('.')
+                dateStr = '%s-%s-%s' % (year, month, day)
+                if weekday in days:
+                    planDays.append(dateStr)
+            except:
+                # nothing
+                date = None
+            pos += 1
+
+        # now we have all days saved. But if we have nothing found: break
+        if len(planDays) <= 0 or pos >= len(lines):
+            return result
+
+        # so we have things found up. Now lets try to find the assigned cancelled classes
+        # next line have to be start with "Fehlende Klassen"
+        if not lines[pos].strip().startswith('Fehlende Klassen'):
+            return result
+
+        classes = []
+        while (len(lines[pos].strip()) > 0 or lines[pos + 1].strip().startswith('Fehlende Klassen')) \
+                and pos < len(lines):
+                if lines[pos].strip().startswith('Fehlende Klassen') and len(classes) > 0:
+                    cancelled.append(self.interpret_classes(classes))
+                    classes = []
+
+                classes.append(lines[pos].strip())
+                pos += 1
+
+        if len(classes) > 0:
+            cancelled.append(self.interpret_classes(classes))
+            classes = []
+
+        # now connect things!
+        if len(planDays) != len(cancelled):
+            print('We have found %i days and %i classes information. We have no association!' % (len(planDays), len(cancelled)))
+
+        for k,v in enumerate(planDays):
+            result[v] = cancelled[k]
+
+        return result
+
+    def interpret_classes(self, classes):
+        # now we saved all things. It will be difficult now, because we have to split all things.
+        # 1. remove text
+        classes[0] = classes[0].replace('Fehlende Klassen:', '')
+        classes = ' '.join(classes).split(';')
+        for k,v in enumerate(classes):
+            v = v.strip().split(' ')
+            info = {'number': '', 'info': ''}
+            info['number'] = v[0]
+            del(v[0])
+            del(v[0])
+            del(v[0])
+
+            if len(v) > 1:
+                v[1] = v[1].replace(')','')
+            elif len(v) > 0:
+                v[0] = v[0].replace(')','')
+
+            info['info'] = ''.join(v)
+
+            classes[k] = info
+
+        return classes
+
 
     def loadConfig(self):
         self.config = configparser.ConfigParser()
