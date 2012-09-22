@@ -257,7 +257,18 @@ class Vertretungsplaner:
 
         if tmp != False:
             self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt hochgeladen.','info')
-            self.send_table(tmp, absPath, 'fillin')
+            # number columns
+            cols = 0
+            try:
+                cols = len(tmp[0])
+            except KeyError as e:
+                cols = 0
+            if cols < 10:
+                planType = 'canceled'
+                tmp = self.convert_to_canceled(tmp)
+            else:
+                planType = 'fillin'
+            self.send_table(tmp, absPath, planType)
         else:
             print('Datei gefunden, die keine Tabelle enthaelt!')
 
@@ -283,6 +294,18 @@ class Vertretungsplaner:
             self.send_table(tmp, absPath, 'canceled', convert=False)
         else:
             print('Datei gefunden, die keine Infos enthaelt!')
+
+    def convert_to_canceled(self, tmp):
+        resultObj = {'stand': int(time.time()), 'plan': {}}
+
+        for row in tmp:
+            day, month, year = row[0].strip().split('.')
+            mysqldate = '%s-%s-%s' % (year, month, day)
+            if mysqldate not in resultObj['plan']:
+                resultObj['plan'][mysqldate] = []
+            resultObj['plan'][mysqldate].append({'number': row[6].strip(), 'info': '%s-%s' % (row[2], row[5]), 'note': row[7]})
+
+        return resultObj
 
     def parse_canceledPlan(self, absPath):
         resultObj = {'stand': int(time.time()), 'plan': {}}
