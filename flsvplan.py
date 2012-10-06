@@ -213,13 +213,14 @@ class Vertretungsplaner:
         # file => Actual file (move to lastFile)
         # self.lastFile => last File (delete)
         path = absFile
-        if os.path.exists(path) and self.lastFile != '':
+        if os.path.exists(self.lastFile) and self.lastFile != '':
             # delete
             os.remove(self.lastFile)
             print('Datei %s entfernt' % (self.lastFile))
         # move
-        file_new = "%s.backup" % (path)
+        file_new = ''
         if self.config.get('options','backupFiles') == 'True':
+            file_new = "%s.backup" % (path)
             if self.config.get('options', 'backupFolder') != 'False':
                 backdir = self.config.get('options', 'backupFolder')
                 if backdir[-1:] is not os.sep:
