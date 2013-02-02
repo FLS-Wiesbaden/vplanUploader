@@ -31,6 +31,7 @@ class WatchFile:
 
 		st_info = os.stat(self.getFullName)
 		self.mtime = st_info.st_mtime
+		self.atime = st_info.st_atime
 
 	@property
 	def getFullName(self):
@@ -190,9 +191,11 @@ class Vertretungsplaner:
 		values = {
 				'apikey': base64.encodestring(self.getAPIKey().encode('utf8')).decode('utf8').replace('\n', ''),
 				'data': data,
-				'type': planType,
-				'XDEBUG_SESSION_START': '1'
+				'type': planType
 			}
+		if self.getOption('debugOnline'):
+			values['XDEBUG_SESSION_START'] = '1'
+		
 		d = urllib.parse.urlencode(values)
 
 		opener = None
@@ -253,8 +256,10 @@ class Vertretungsplaner:
 			__file__ = 'flsvplan.py'
 		
 		path = os.path.dirname(__file__) if len(os.path.dirname(__file__)) > 0 else sys.path[0]
-		path = '%s/coredump' % (path,)
-		filename = '%s/%s-%s.dump' % (path, __file__, datetime.now().strftime('%Y%m%d%H%M%S%f'))
+		if len(path) > 0 and not os.path.isdir(path):
+			path = os.path.dirname(path)
+		path = '%s%scoredump' % (path, os.sep)
+		filename = '%s%s%s-%s.dump' % (path, os.sep, __file__, datetime.now().strftime('%Y%m%d%H%M%S%f'))
 		# truncate folder
 		if os.path.exists(path):
 			shutil.rmtree(path, ignore_errors=False, onerror=None)
