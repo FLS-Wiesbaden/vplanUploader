@@ -20,15 +20,15 @@ base = None
 exeName = 'flsvplan'
 exeDebug = 'flsvplan_debug'
 if sys.platform == "win32":
-    base = "Win32GUI"
-    exeName = exeName + '.exe'
-    exeDebug = exeDebug + '.exe'
+	base = "Win32GUI"
+	exeName = exeName + '.exe'
+	exeDebug = exeDebug + '.exe'
 
 flsvplan = Executable(
 	"flsvplan.py",
 	base = base,
 	icon = "fls_logo.ico",
-        targetName = exeName,
+		targetName = exeName,
 	copyDependentFiles = True,
 	appendScriptToExe = True,
 	appendScriptToLibrary = True,
@@ -39,7 +39,7 @@ flsvplan_debug = Executable(
 	"flsvplan.py",
 	base = None,
 	icon = "fls_logo.ico",
-        targetName = exeDebug,
+		targetName = exeDebug,
 	copyDependentFiles = True,
 	appendScriptToExe = True,
 	appendScriptToLibrary = True,
@@ -54,8 +54,8 @@ buildOpts = {
 
 setup(
 	name = "FLS Vertretungsplaner",
-	version = "0.3",
-	description = "Vertretungsplaner Client DaVinci",
+	version = "0.3.5",
+	description = "Vertretungsplaner Client",
 	author = "Friedrich-List-Schule Wiesbaden",
 	author_email = "website-team@fls-wiesbaden.de",
 	url = "http://fls-wiesbaden.de",
