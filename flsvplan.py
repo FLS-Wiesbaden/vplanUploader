@@ -94,7 +94,17 @@ class Vertretungsplaner:
 		self.locked = True
 		pathToWatch = self.getWatchPath()
 
-		after = dict([(f, WatchFile(pathToWatch, f)) for f in os.listdir(pathToWatch)])
+		try:
+			after = dict([(f, WatchFile(pathToWatch, f)) for f in os.listdir(pathToWatch)])
+		except FileNotFoundError as e:
+			print('\nCould not poll directory %s (does not exist!)' % (pathToWatch,))
+			# try recreate the directory (maybe it does not exist in base path:
+			try:
+				os.makedirs(pathToWatch)
+			except: pass
+			self.locked = False
+			return
+
 		added = [f for f in after if not f in self.before]
 		removed = [f for f in self.before if not f in after]
 		same = [f for f in after if f in self.before]
@@ -120,10 +130,14 @@ class Vertretungsplaner:
 
 	def initPlan(self):
 		pathToWatch = self.getWatchPath()
-		if not os.path.exists(pathToWatch):
-			os.makedirs(pathToWatch)
+		try:
+			if not os.path.exists(pathToWatch):
+				os.makedirs(pathToWatch)
 
-		self.before = dict([(f, WatchFile(pathToWatch, f)) for f in os.listdir(pathToWatch)])
+			self.before = dict([(f, WatchFile(pathToWatch, f)) for f in os.listdir(pathToWatch)])
+		except FileNotFoundError as e:
+			print('\nCould not poll directory %s (does not exist!)' % (pathToWatch,))
+			self.before = {}
 
 		# Now start Looping
 		self.search = Thread(target=SearchPlaner, args=(self,)).start()
