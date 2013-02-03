@@ -160,8 +160,11 @@ class Vertretungsplaner:
 
 	def parse_table(self, dtaContents):
 		p = TableParser(dtaContents)
-		table = p.getTable()
-		return table[3:]
+		try:
+			table = p.getTable()
+			return table[3:]
+		except:
+			return []
 
 	def convert(self, table):
 		for i,v in enumerate(table):
@@ -207,11 +210,11 @@ class Vertretungsplaner:
 				'data': data,
 				'type': planType
 			}
+
 		if self.getOption('debugOnline'):
 			values['XDEBUG_SESSION_START'] = '1'
 		
 		d = urllib.parse.urlencode(values)
-
 		opener = None
 		if self.isProxyEnabled():
 			print('Proxy is activated')
@@ -237,6 +240,9 @@ class Vertretungsplaner:
 					)).encode('utf8')
 				).decode('utf8').replace('\n', '')
 			request.add_header("Authorization", "Basic %s" % authstr)
+
+		# add post info
+		request.add_header('Content-type', 'application/x-www-form-urlencoded')
 
 		try:
 			response = opener.open(request)
@@ -337,6 +343,9 @@ class Vertretungsplaner:
 				cols = len(tmp[0])
 			except KeyError as e:
 				cols = 0
+			except IndexError as e:
+				cols = 0
+
 			if cols < 10:
 				planType = 'canceled'
 				tmp = self.convert_to_canceled(tmp)
