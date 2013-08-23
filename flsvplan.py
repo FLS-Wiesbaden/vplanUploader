@@ -12,8 +12,11 @@ from searchplaner import *
 from threading import Thread
 from Printer import Printer
 from pprint import pprint
-from pydump import pydump
+#from pydump import pydump
 from datetime import datetime
+import pickle
+import traceback
+import inspect
 
 app = None
 if os.name in 'nt':
@@ -261,16 +264,16 @@ class Vertretungsplaner:
 
 			print('Erfolgreich hochgeladen.')
 		except urllib.error.URLError as err:
-			self.createCoreDump()
-			self.showToolTip('Uploadfehler!','Die Datei konnte eventuell nicht hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
+			self.createCoreDump(err)
+			self.showToolTip('Warnung','Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
 			print("URL-Fehler aufgetreten: %s" % ( err.reason, ))
 		except urllib.error.HTTPError as err:
-			self.createCoreDump()
-			self.showToolTip('Uploadfehler!','Die Datei konnte eventuell nicht hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
+			self.createCoreDump(err)
+			self.showToolTip('Warnung','Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
 			print("HTTP-Fehler aufgetreten: %i - %s" % ( err.code, err.reason ))
 		except Exception as err:
-			self.createCoreDump()
-			self.showToolTip('Uploadfehler!','Die Datei konnte eventuell nicht hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
+			self.createCoreDump(err)
+			self.showToolTip('Warnung','Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
 			print("Unbekannter Fehler aufgetreten: ", err)
 
 		# now move the file and save an backup. Also delete the older one.
@@ -295,7 +298,24 @@ class Vertretungsplaner:
 			shutil.rmtree(path, ignore_errors=False, onerror=None)
 		os.makedirs(path)
 
-		pydump.save_dump(filename)
+		dump = {}
+		dump['url'] = err.geturl()
+		dump['code'] = err.getcode()
+		dump['info'] = err.info()
+		dump['hdrs'] = err.hdrs
+		dump['msg'] = err.msg
+		dump['tb'] = traceback.format_exc()
+		dump['tbTrace'] = {}
+		excInfo = sys.exc_info()
+
+		i = 0
+		while i < len(excInfo):
+			dump['tbTrace'][i] = 'No args available: %s' % (excInfo[i],)
+			i += 1
+
+		with open(filename, 'wb') as f:
+			pickle.dump(dump, f)
+			
 		print('Coredump created in %s' % (filename,))
 
 	def moveAndDeleteVPlanFile(self, absFile):
