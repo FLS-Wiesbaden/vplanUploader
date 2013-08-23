@@ -4,8 +4,8 @@
 # @author Lukas Schreiner
 #
 
-import urllib.request, urllib.parse, urllib.error, traceback, sys
-import time, os, os.path, json, codecs, base64, configparser, shutil
+import urllib.request, urllib.parse, urllib.error, traceback, sys, re
+import time, os, os.path, json, codecs, base64, configparser, shutil, csv
 from TableParser import TableParser
 from layout_scanner import *
 from searchplaner import *
@@ -115,12 +115,22 @@ class Vertretungsplaner:
 			print("\nChanged/Added new Files: ", ", ".join(todo))
 			for f in todo:
 				f = f.strip()
-				if f.lower().endswith('.html') or f.lower().endswith('.htm'):
-					Thread(target=self.handlingPlaner, args=(f,)).start()
-				elif f.lower().endswith('.pdf'):
-					Thread(target=self.handlingCanceledPlan, args=(f, )).start()
-				else:
-					print('"%s" will be ignored.' % f)
+				if self.config.get('vplan', 'type') == 'daVinci':
+					# switch version
+					if int(self.config.get('vplan', 'version')) == 5:
+						if f.lower().endswith('.html') or f.lower().endswith('.htm'):
+							Thread(target=self.handlingPlaner, args=(f,)).start()
+						elif f.lower().endswith('.pdf'):
+							Thread(target=self.handlingCanceledPlan, args=(f, )).start()
+						else:
+							print('"%s" will be ignored.' % f)
+					elif int(self.config.get('vplan', 'version')) == 6:
+						if f.lower().endswith('.csv') or f.lower().endswith('.txt'):
+							Thread(target=self.handlingDavinciSix, args=(f,)).start()
+						else:
+							print('"%s" will be ignored.' % f)
+					else:
+						print('"%s" will be ignored.' % f)
 
 		if removed:
 			print("\nRemoved files: ", ", ".join(removed))
@@ -402,6 +412,72 @@ class Vertretungsplaner:
 				resultObj['plan'][k] = v
 
 		return resultObj
+
+	def handlingDavinciSix(self, fileName):
+		pattTeacher = re.compile(r'^((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\)$')
+		pattRoom = re.compile(r'^(((\+([a-zA-Z0-9 ]+)) )?\(([a-zA-Z0-9 ]+)\)|[a-zA-Z0-9 ]+)$')
+		pattSubject = re.compile(r'^(((\+([a-zA-Z0-9ÄÖÜüäö+]+)) )?\(([a-zA-Z0-9ÄÖÜüäö+]+)\)|[a-zA-Z0-9ÄÖÜüäö+]+)$')
+
+		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt verarbeitet.','info')
+
+		path = self.getWatchPath()
+		sep = os.sep
+		absPath = path+sep+fileName
+		f = open(absPath, 'r')
+		reader = csv.reader(f, delimiter='\t')
+
+		data = []
+		for row in reader:
+			r = []
+			i = 0
+			for i in range(0, 15):
+				r.append('')
+
+			teacherMatch = pattTeacher.match(row[8])
+			oldTeacher = None
+			newTeacher = None
+			if teacherMatch is not None:
+				newTeacher = teacherMatch.group(3)
+				oldTeacher = teacherMatch.group(4)
+
+			subjMatch = pattSubject.match(row[9])
+			oldSubj = None
+			newSubj = None
+			if subjMatch is not None:
+				newSubj = subjMatch.group(4)
+				oldSubj = subjMatch.group(0) if subjMatch.group(5) is None else subjMatch.group(5)
+
+			roomMatch = pattRoom.match(row[10])
+			oldRoom = None
+			newRoom = None
+			if roomMatch is not None:
+				newRoom = roomMatch.group(4)
+				oldRoom = roomMatch.group(0) if roomMatch.group(5) is None else roomMatch.group(5)
+
+			if row[12].strip() == '' and row[1] == self.config.get('vplan', 'txtInterpretFrei'):
+					row[12] = self.config.get('vplan', 'txtReplaceFrei')
+
+			r[2] = row[3] # Date
+			r[4] = row[5] # School-Hour
+			r[6] = oldTeacher if oldTeacher is not None else '' # Original teacher
+			r[7] = oldSubj if oldSubj is not None else '' # Original subject
+			r[8] = oldRoom if oldRoom is not None else '' # Original room
+			r[9] = row[11] # Course
+			r[10] = newTeacher if newTeacher is not None else '' # New teacher
+			r[11] = newSubj if newSubj is not None else '' # New subject
+			r[12] = newRoom if newRoom is not None else '' # New room
+			r[13] = row[12] # infos
+			r[14] = row[13] # notes
+
+			if row[11].strip() == '':
+				# we have no course. So we filter it out!
+				pass
+			else:
+				data.append(r)
+
+		f.close()
+		self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
+		self.send_table(data, absPath, 'fillin')
 
 	def parse_page(self, page):
 		planDays = []
