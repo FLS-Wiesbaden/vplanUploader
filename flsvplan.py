@@ -244,7 +244,7 @@ class Vertretungsplaner:
 			opener = urllib.request.build_opener(urllib.request.HTTPHandler)
 			urllib.request.install_opener(opener)
 
-		request = urllib.request.Request(self.getSendURL(), d.encode('utf8'))
+		request = urllib.request.Request(self.getSendURL(), d.encode('utf8'), method='POST')
 		if self.config.has_option("siteauth", "enable") and self.config.get("siteauth", "enable") == 'True':
 			authstr = base64.encodestring(
 					('%s:%s' % (
@@ -255,7 +255,7 @@ class Vertretungsplaner:
 			request.add_header("Authorization", "Basic %s" % authstr)
 
 		# add post info
-		request.add_header('Content-type', 'application/x-www-form-urlencoded')
+		request.add_header('Content-Type', 'application/x-www-form-urlencoded;charset=utf-8')
 
 		try:
 			response = opener.open(request)
@@ -279,7 +279,7 @@ class Vertretungsplaner:
 		# now move the file and save an backup. Also delete the older one.
 		self.moveAndDeleteVPlanFile(absFile)
 
-	def createCoreDump(self):
+	def createCoreDump(self, err):
 		if not self.getOption('createCoreDump'):
 			return
 
@@ -435,19 +435,28 @@ class Vertretungsplaner:
 
 	def handlingDavinciSix(self, fileName):
 		pattTeacher = re.compile(r'^((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\)$')
-		pattRoom = re.compile(r'^(((\+([a-zA-Z0-9 ]+)) )?\(([a-zA-Z0-9 ]+)\)|[a-zA-Z0-9 ]+)$')
-		pattSubject = re.compile(r'^(((\+([a-zA-Z0-9ÄÖÜüäö+]+)) )?\(([a-zA-Z0-9ÄÖÜüäö+]+)\)|[a-zA-Z0-9ÄÖÜüäö+]+)$')
+		pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+)) )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
+		pattMoved = re.compile(r'^[A-Za-z]+\ (\d{1,2})\.(\d{1,2})\.\ ([a-zA-Z]{2})\ (\d{1,2})\ [a-zA-Z]+$')
 
 		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt verarbeitet.','info')
 
 		path = self.getWatchPath()
 		sep = os.sep
 		absPath = path+sep+fileName
-		f = open(absPath, 'r')
+		f = open(absPath, 'r', encoding='utf-8' if self.filesAreUTF8() else 'iso-8859-1')
 		reader = csv.reader(f, delimiter='\t')
+		planType = 'fillin'
 
 		data = []
 		for row in reader:
+			if ''.join(row).strip() == '':
+				continue
+
+			if len(row) <= 3:
+				data = self.handlingDavinciSixCancelled(fileName)
+				planType = 'canceled'
+				break
+
 			r = []
 			i = 0
 			for i in range(0, 15):
@@ -460,12 +469,12 @@ class Vertretungsplaner:
 				newTeacher = teacherMatch.group(3)
 				oldTeacher = teacherMatch.group(4)
 
-			subjMatch = pattSubject.match(row[9])
 			oldSubj = None
 			newSubj = None
-			if subjMatch is not None:
-				newSubj = subjMatch.group(4)
-				oldSubj = subjMatch.group(0) if subjMatch.group(5) is None else subjMatch.group(5)
+			if row[9].strip().startswith('+'):
+				newSubj = row[9].strip()[1:].strip()
+			else:
+				oldSubj = row[9].strip()
 
 			roomMatch = pattRoom.match(row[10])
 			oldRoom = None
@@ -474,8 +483,6 @@ class Vertretungsplaner:
 				newRoom = roomMatch.group(4)
 				oldRoom = roomMatch.group(0) if roomMatch.group(5) is None else roomMatch.group(5)
 
-			if row[12].strip() == '' and row[1] == self.config.get('vplan', 'txtInterpretFrei'):
-					row[12] = self.config.get('vplan', 'txtReplaceFrei')
 
 			r[2] = row[3] # Date
 			r[4] = row[5] # School-Hour
@@ -489,6 +496,19 @@ class Vertretungsplaner:
 			r[13] = row[12] # infos
 			r[14] = row[13] # notes
 
+			if row[12].strip() == '' and row[1] == self.config.get('vplan', 'txtInterpretFrei'):
+					r[13] = self.config.get('vplan', 'txtReplaceFrei')
+			elif self.config.get('vplan', 'txtInterpretMoved').lower() in row[1].lower():
+				# is this a moved item?
+				moveMatch = pattMoved.match(row[1].strip())
+				if moveMatch is not None:
+					day, month, weekday, hour = moveMatch.groups()
+					day = int(day)
+					month = int(month)
+					hour = int(hour)
+					r[13] = self.config.get('vplan', 'txtMovedInfo')
+					r[14] = self.config.get('vplan', 'txtMovedNote').format(weekday, hour, day, month)
+
 			if row[11].strip() == '':
 				# we have no course. So we filter it out!
 				pass
@@ -497,7 +517,35 @@ class Vertretungsplaner:
 
 		f.close()
 		self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
-		self.send_table(data, absPath, 'fillin')
+		self.send_table(data, absPath, planType)
+
+	def handlingDavinciSixCancelled(self, fileName):
+		path = self.getWatchPath()
+		sep = os.sep
+		absPath = path+sep+fileName
+		f = open(absPath, 'r', encoding='utf-8' if self.filesAreUTF8() else 'iso-8859-1')
+		reader = csv.reader(f, delimiter=';')
+
+		data = {'stand': int(time.time()), 'plan': {}}
+		for row in reader:
+			try:
+				date, className, info = row
+			except ValueError:
+				# might be a empty line :)
+				continue
+
+			try:
+				day, month, year = date.split('.')
+			except ValueError:
+				# uhh it might be the first line: skip!
+				continue
+			mysqlDate = '%s-%s-%s' % (year, month, day)
+			if mysqlDate not in data['plan']:
+				data['plan'][mysqlDate] = []
+
+			data['plan'][mysqlDate].append({'number': className.strip(), 'info': '', 'note': info})
+
+		return data
 
 	def parse_page(self, page):
 		planDays = []
