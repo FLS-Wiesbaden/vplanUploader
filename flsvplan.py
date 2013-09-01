@@ -244,7 +244,7 @@ class Vertretungsplaner:
 			opener = urllib.request.build_opener(urllib.request.HTTPHandler)
 			urllib.request.install_opener(opener)
 
-		request = urllib.request.Request(self.getSendURL(), d.encode('utf8'), method='POST')
+		request = urllib.request.Request(self.getSendURL(), d.encode('utf8'))
 		if self.config.has_option("siteauth", "enable") and self.config.get("siteauth", "enable") == 'True':
 			authstr = base64.encodestring(
 					('%s:%s' % (
@@ -434,7 +434,7 @@ class Vertretungsplaner:
 		return resultObj
 
 	def handlingDavinciSix(self, fileName):
-		pattTeacher = re.compile(r'^((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\)$')
+		pattTeacher = re.compile(r'^(((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\))|([a-zA-ZÄÖÜäöü]+)$')
 		pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+)) )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
 		pattMoved = re.compile(r'^[A-Za-z]+\ (\d{1,2})\.(\d{1,2})\.\ ([a-zA-Z]{2})\ (\d{1,2})\ [a-zA-Z]+$')
 
@@ -466,8 +466,11 @@ class Vertretungsplaner:
 			oldTeacher = None
 			newTeacher = None
 			if teacherMatch is not None:
-				newTeacher = teacherMatch.group(3)
-				oldTeacher = teacherMatch.group(4)
+				if teacherMatch.group(6) is None:
+					newTeacher = teacherMatch.group(4)
+					oldTeacher = teacherMatch.group(5)
+				else:
+					oldTeacher = teacherMatch.group(6)
 
 			oldSubj = None
 			newSubj = None
@@ -482,7 +485,6 @@ class Vertretungsplaner:
 			if roomMatch is not None:
 				newRoom = roomMatch.group(4)
 				oldRoom = roomMatch.group(0) if roomMatch.group(5) is None else roomMatch.group(5)
-
 
 			r[2] = row[3] # Date
 			r[4] = row[5] # School-Hour
