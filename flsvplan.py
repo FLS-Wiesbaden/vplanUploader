@@ -452,7 +452,7 @@ class Vertretungsplaner:
 			if ''.join(row).strip() == '':
 				continue
 
-			if len(row) <= 3:
+			if len(row) <= 6:
 				data = self.handlingDavinciSixCancelled(fileName)
 				planType = 'canceled'
 				break
@@ -531,7 +531,7 @@ class Vertretungsplaner:
 		data = {'stand': int(time.time()), 'plan': {}}
 		for row in reader:
 			try:
-				date, className, info = row
+				date, hours, className, info, room, note = row
 			except ValueError:
 				# might be a empty line :)
 				continue
@@ -545,7 +545,26 @@ class Vertretungsplaner:
 			if mysqlDate not in data['plan']:
 				data['plan'][mysqlDate] = []
 
-			data['plan'][mysqlDate].append({'number': className.strip(), 'info': '', 'note': info})
+			try:
+				hours = hours.strip().split('-');
+				hours[0] = int(hours[0].replace('.', '').strip())
+				if len(hours) > 0:
+					hours[1] = int(hours[1].replace('.', '').strip())
+				else:
+					hours[1] = hours[0]
+			except:
+				continue
+
+			for hour in range(hours[0], hours[1]):
+				data['plan'][mysqlDate].append(
+					{
+						'number': className.strip(), 
+						'info': info, 
+						'note': note,
+						'room': room,
+						'hour': hour
+					}
+				)
 
 		return data
 
