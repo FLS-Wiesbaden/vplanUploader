@@ -554,11 +554,12 @@ class Vertretungsplaner:
 			try:
 				hours = hours.strip().split('-');
 				hours[0] = int(hours[0].replace('.', '').strip())
-				if len(hours) > 0:
+				if len(hours) > 1:
 					hours[1] = int(hours[1].replace('.', '').strip())
 				else:
-					hours[1] = hours[0]
-			except:
+					hours.append(hours[0])
+			except Exception as e:
+				print('Got error: %s' % (e,))
 				continue
 
 			for hour in range(hours[0], hours[1] + 1):
