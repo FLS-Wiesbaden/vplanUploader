@@ -216,6 +216,8 @@ class Vertretungsplaner:
 		if convert:
 			table = self.convert(table)
 
+		from pprint import pprint
+		pprint(table)
 		data = json.dumps(table).encode('utf8')
 		data = base64.encodestring(data).decode('utf8').replace('\n', '')
 		values = {
@@ -479,7 +481,11 @@ class Vertretungsplaner:
 			else:
 				oldSubj = row[9].strip()
 
-			roomMatch = pattRoom.match(row[10])
+			try:
+				roomMatch = pattRoom.match(row[10])
+			except Exception as e:
+				roomMatch = None
+				print(e, row)
 			oldRoom = None
 			newRoom = None
 			if roomMatch is not None:
@@ -531,7 +537,7 @@ class Vertretungsplaner:
 		data = {'stand': int(time.time()), 'plan': {}}
 		for row in reader:
 			try:
-				date, hours, className, info, room, note = row
+				date, hours, teacher, subject, className, info, room, note = row
 			except ValueError:
 				# might be a empty line :)
 				continue
@@ -555,13 +561,15 @@ class Vertretungsplaner:
 			except:
 				continue
 
-			for hour in range(hours[0], hours[1]):
+			for hour in range(hours[0], hours[1] + 1):
 				data['plan'][mysqlDate].append(
 					{
 						'number': className.strip(), 
 						'info': info, 
 						'note': note,
 						'room': room,
+						'teacher': teacher,
+						'subject': subject,
 						'hour': hour
 					}
 				)

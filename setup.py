@@ -54,7 +54,7 @@ buildOpts = {
 
 setup(
 	name = "FLS Vertretungsplaner",
-	version = "0.3.5",
+	version = "0.4.2",
 	description = "Vertretungsplaner Client",
 	author = "Friedrich-List-Schule Wiesbaden",
 	author_email = "website-team@fls-wiesbaden.de",
