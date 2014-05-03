@@ -461,7 +461,7 @@ class Vertretungsplaner:
 			for i in range(0, 15):
 				r.append('')
 
-			teacherMatch = pattTeacher.match(row[8])
+			teacherMatch = pattTeacher.match(row[9])
 			oldTeacher = None
 			newTeacher = None
 			if teacherMatch is not None:
@@ -473,13 +473,13 @@ class Vertretungsplaner:
 
 			oldSubj = None
 			newSubj = None
-			if row[9].strip().startswith('+'):
-				newSubj = row[9].strip()[1:].strip()
+			if row[10].strip().startswith('+'):
+				newSubj = row[10].strip()[1:].strip()
 			else:
-				oldSubj = row[9].strip()
+				oldSubj = row[10].strip()
 
 			try:
-				roomMatch = pattRoom.match(row[10])
+				roomMatch = pattRoom.match(row[11])
 			except Exception as e:
 				roomMatch = None
 				print(e, row)
@@ -494,15 +494,15 @@ class Vertretungsplaner:
 			r[6] = oldTeacher if oldTeacher is not None else '' # Original teacher
 			r[7] = oldSubj if oldSubj is not None else '' # Original subject
 			r[8] = oldRoom if oldRoom is not None else '' # Original room
-			r[9] = row[11] # Course
+			r[9] = row[12] # Course
 			r[10] = newTeacher if newTeacher is not None else '' # New teacher
 			r[11] = newSubj if newSubj is not None else '' # New subject
 			r[12] = newRoom if newRoom is not None else '' # New room
-			r[13] = row[12] # infos
-			r[14] = row[13] # notes
+			r[13] = row[13] # infos
+			r[14] = row[14] # notes
 
-			if row[12].strip() == '' and row[1] == self.config.get('vplan', 'txtInterpretFrei'):
-					r[13] = self.config.get('vplan', 'txtReplaceFrei')
+			if row[13].strip() == '' and row[1] == self.config.get('vplan', 'txtInterpretFrei'):
+					r[14] = self.config.get('vplan', 'txtReplaceFrei')
 			elif self.config.get('vplan', 'txtInterpretMoved').lower() in row[1].lower():
 				# is this a moved item?
 				moveMatch = pattMoved.match(row[1].strip())
@@ -514,7 +514,7 @@ class Vertretungsplaner:
 					r[13] = self.config.get('vplan', 'txtMovedInfo')
 					r[14] = self.config.get('vplan', 'txtMovedNote').format(weekday, hour, day, month)
 
-			if row[11].strip() == '':
+			if row[12].strip() == '':
 				# we have no course. So we filter it out!
 				pass
 			else:
