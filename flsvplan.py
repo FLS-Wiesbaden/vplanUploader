@@ -11,7 +11,7 @@ from layout_scanner import *
 from searchplaner import *
 from threading import Thread
 from Printer import Printer
-from pprint import pprint
+#from pprint import pprint
 #from pydump import pydump
 from datetime import datetime
 import pickle
@@ -216,8 +216,6 @@ class Vertretungsplaner:
 		if convert:
 			table = self.convert(table)
 
-		from pprint import pprint
-		pprint(table)
 		data = json.dumps(table).encode('utf8')
 		data = base64.encodestring(data).decode('utf8').replace('\n', '')
 		values = {
@@ -396,7 +394,6 @@ class Vertretungsplaner:
 		print("\nThis is what you want: ", absPath)
 		try:
 			tmp = self.parse_canceledPlan(absPath)
-			pprint(tmp)
 			for k,v in tmp['plan'].items():
 				print('Anzahl abbestellter Klassen fuer Tag %s: %i' % (k, len(tmp['plan'][k])))
 		except Exception as detail:
