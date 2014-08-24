@@ -86,10 +86,13 @@ class Vertretungsplaner:
 	def setRun(self, run):
 		self.run = run
 
-	def showToolTip(self,title,msg,msgtype):
+	def showToolTip(self, title, msg, msgtype):
 		if self.tray is not None:
 			self.tray.showInfo(title, msg)
-		return 0
+		else:
+			# ok.. than let us print on console
+			print('[%s] %s: %s' % (msgtype, title, msg))
+		return True
 
 	def getNewFiles(self):
 		print('Starte suche...')
@@ -211,7 +214,7 @@ class Vertretungsplaner:
 
 		return data
 
-	def send_table(self, table, absFile, planType, convert = True):
+	def send_table(self, table, absFile, planType = 'all', convert = True):
 		# jau.. send it to the top url!
 		if convert:
 			table = self.convert(table)
@@ -433,6 +436,22 @@ class Vertretungsplaner:
 		return resultObj
 
 	def handlingDavinciSix(self, fileName):
+		""" Define a new structure...:
+		'type'
+		'date'
+		'hour'
+		'starttime'
+		'endtime'
+		'teacher'
+		'subject'
+		'room'
+		'course'
+		'chgteacher'
+		'chgsubject'
+		'chgroom'
+		'notes'
+		'info'
+        """
 		pattTeacher = re.compile(r'^(((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\))|([a-zA-ZÄÖÜäöü]+)$')
 		pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+)) )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
 		pattMoved = re.compile(r'^[A-Za-z]+\ (\d{1,2})\.(\d{1,2})\.\ ([a-zA-Z]{2})\ (\d{1,2})\ [a-zA-Z]+$')
@@ -442,87 +461,126 @@ class Vertretungsplaner:
 		path = self.getWatchPath()
 		sep = os.sep
 		absPath = path+sep+fileName
-		f = open(absPath, 'r', encoding='utf-8' if self.filesAreUTF8() else 'iso-8859-1')
-		reader = csv.reader(f, delimiter='\t')
-		planType = 'fillin'
+		try:
+			f = open(absPath, 'r', encoding='utf-8' if self.filesAreUTF8() else 'iso-8859-1')
+			reader = csv.reader(f, delimiter='\t')
 
-		data = []
-		for row in reader:
-			if ''.join(row).strip() == '':
-				continue
+			data = {'stand': int(time.time()), 'plan': []}
+			for row in reader:
+				if ''.join(row).strip() == '':
+					continue
 
-			if len(row) <= 6:
-				data = self.handlingDavinciSixCancelled(fileName)
-				planType = 'canceled'
-				break
+				if len(row) <= 6:
+					data['plan'].append(self.handlingDavinciSixCancelled(fileName))
+					break
 
-			r = []
-			i = 0
-			for i in range(0, 15):
-				r.append('')
+				# check type - specific things we just skip
+				if row[0].strip() == self.config.get('vplan', 'txtInterpretYardDuty'):
+					yd = self.handlingYardDuty(row)
+					if yd is not None:
+						data['plan'].append(yd)
+					continue
 
-			teacherMatch = pattTeacher.match(row[9])
-			oldTeacher = None
-			newTeacher = None
-			if teacherMatch is not None:
-				if teacherMatch.group(6) is None:
-					newTeacher = teacherMatch.group(4)
-					oldTeacher = teacherMatch.group(5)
+				r = {
+					'type': 1,
+					'date': '',
+					'hour': None,
+					'starttime': None,
+					'endtime': None,
+					'teacher': None,
+					'subject': None,
+					'room': None,
+					'course': None,
+					'chgteacher': None,
+					'chgsubject': None,
+					'chgroom': None,
+					'notes': '',
+					'info': ''
+				}
+
+				teacherMatch = pattTeacher.match(row[9])
+				oldTeacher = None
+				newTeacher = None
+				if teacherMatch is not None:
+					if teacherMatch.group(6) is None:
+						newTeacher = teacherMatch.group(4)
+						oldTeacher = teacherMatch.group(5)
+					else:
+						oldTeacher = teacherMatch.group(6)
+
+				oldSubj = None
+				newSubj = None
+				if row[10].strip().startswith('+'):
+					newSubj = row[10].strip()[1:].strip()
 				else:
-					oldTeacher = teacherMatch.group(6)
+					oldSubj = row[10].strip()
 
-			oldSubj = None
-			newSubj = None
-			if row[10].strip().startswith('+'):
-				newSubj = row[10].strip()[1:].strip()
-			else:
-				oldSubj = row[10].strip()
+				try:
+					roomMatch = pattRoom.match(row[11])
+				except Exception as e:
+					roomMatch = None
+					print(e, row)
+				oldRoom = None
+				newRoom = None
+				if roomMatch is not None:
+					newRoom = roomMatch.group(4)
+					oldRoom = roomMatch.group(0) if roomMatch.group(5) is None else roomMatch.group(5)
 
-			try:
-				roomMatch = pattRoom.match(row[11])
-			except Exception as e:
-				roomMatch = None
-				print(e, row)
-			oldRoom = None
-			newRoom = None
-			if roomMatch is not None:
-				newRoom = roomMatch.group(4)
-				oldRoom = roomMatch.group(0) if roomMatch.group(5) is None else roomMatch.group(5)
+				# get times
+				entryTime = row[7].strip()
+				starttime = None
+				endtime = None
+				if '-' in entryTime:
+					starttime, endtime = entryTime.split('-')
+					if len(starttime) <= 5:
+						starttime = starttime + ':00'
+					if len(endtime) <= 5:
+						endtime = endtime + ':00'
 
-			r[2] = row[3] # Date
-			r[4] = row[5] # School-Hour
-			r[6] = oldTeacher if oldTeacher is not None else '' # Original teacher
-			r[7] = oldSubj if oldSubj is not None else '' # Original subject
-			r[8] = oldRoom if oldRoom is not None else '' # Original room
-			r[9] = row[12] # Course
-			r[10] = newTeacher if newTeacher is not None else '' # New teacher
-			r[11] = newSubj if newSubj is not None else '' # New subject
-			r[12] = newRoom if newRoom is not None else '' # New room
-			r[13] = row[13] # infos
-			r[14] = row[14] # notes
+				r['date'] = row[3] # Date
+				r['hour'] = row[5] # School-Hour
+				r['starttime'] = starttime
+				r['endtime'] = endtime
+				r['teacher'] = oldTeacher if oldTeacher is not None else '' # Original teacher
+				r['subject'] = oldSubj if oldSubj is not None else '' # Original subject
+				r['room'] = oldRoom if oldRoom is not None else '' # Original room
+				r['course'] = row[12] # Course
+				r['chgteacher'] = newTeacher if newTeacher is not None else '' # New teacher
+				r['chgsubject'] = newSubj if newSubj is not None else '' # New subject
+				r['chgroom'] = newRoom if newRoom is not None else '' # New room
+				r['info'] = row[13] # infos
+				r['notes'] = row[14] # notes
 
-			if row[13].strip() == '' and row[1] == self.config.get('vplan', 'txtInterpretFrei'):
-					r[14] = self.config.get('vplan', 'txtReplaceFrei')
-			elif self.config.get('vplan', 'txtInterpretMoved').lower() in row[1].lower():
-				# is this a moved item?
-				moveMatch = pattMoved.match(row[1].strip())
-				if moveMatch is not None:
-					day, month, weekday, hour = moveMatch.groups()
-					day = int(day)
-					month = int(month)
-					hour = int(hour)
-					r[13] = self.config.get('vplan', 'txtMovedInfo')
-					r[14] = self.config.get('vplan', 'txtMovedNote').format(weekday, hour, day, month)
+				if row[13].strip() == '' and row[1] == self.config.get('vplan', 'txtInterpretFrei'):
+						r['notes'] = self.config.get('vplan', 'txtReplaceFrei')
+				elif self.config.get('vplan', 'txtInterpretMoved').lower() in row[1].lower():
+					# is this a moved item?
+					moveMatch = pattMoved.match(row[1].strip())
+					if moveMatch is not None:
+						day, month, weekday, hour = moveMatch.groups()
+						day = int(day)
+						month = int(month)
+						hour = int(hour)
+						r['info'] = self.config.get('vplan', 'txtMovedInfo')
+						r['notes'] = self.config.get('vplan', 'txtMovedNote').format(weekday, hour, day, month)
 
-			if row[12].strip() == '':
-				# we have no course. So we filter it out!
-				pass
-			else:
-				data.append(r)
+				if row[12].strip() == '':
+					# we have no course. So we filter it out!
+					pass
+				else:
+					data['plan'].append(r)
+					start = int(row[5]) + 1
+					end = int(row[6])
+					while start <= end:
+						r['hour'] = start
+						data['plan'].append(r)
+						start += 1
 
-		f.close()
-		self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
-		self.send_table(data, absPath, planType)
+			f.close()
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
+			self.send_table(data, absPath)
+		except:
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft.','error')
 
 	def handlingDavinciSixCancelled(self, fileName):
 		path = self.getWatchPath()
@@ -531,7 +589,7 @@ class Vertretungsplaner:
 		f = open(absPath, 'r', encoding='utf-8' if self.filesAreUTF8() else 'iso-8859-1')
 		reader = csv.reader(f, delimiter=';')
 
-		data = {'stand': int(time.time()), 'plan': {}}
+		data = []
 		for row in reader:
 			try:
 				date, hours, teacher, subject, className, info, room, note = row
@@ -544,9 +602,7 @@ class Vertretungsplaner:
 			except ValueError:
 				# uhh it might be the first line: skip!
 				continue
-			mysqlDate = '%s-%s-%s' % (year, month, day)
-			if mysqlDate not in data['plan']:
-				data['plan'][mysqlDate] = []
+			entryDate = '%s.%s.%s' % (day, month, year)
 
 			try:
 				hours = hours.strip().split('-');
@@ -560,19 +616,96 @@ class Vertretungsplaner:
 				continue
 
 			for hour in range(hours[0], hours[1] + 1):
-				data['plan'][mysqlDate].append(
-					{
-						'number': className.strip(), 
-						'info': info, 
-						'note': note,
-						'room': room,
-						'teacher': teacher,
-						'subject': subject,
-						'hour': hour
-					}
-				)
+				r = {
+					'type': 2,
+					'date': entryDate,
+					'hour': hour,
+					'starttime': None,
+					'endtime': None,
+					'teacher': teacher,
+					'subject': subject,
+					'room': room,
+					'course': None,
+					'chgteacher': None,
+					'chgsubject': None,
+					'chgroom': None,
+					'notes': note,
+					'info': info
+				}
+				r['course'] = className.strip(), 
+
+				data.append(r)
 
 		return data
+
+	def handlingYardDuty(self, row):
+		""" Define a new structure...:
+		'type'
+		'date'
+		'hour'
+		'starttime'
+		'endtime'
+		'teacher'
+		'subject'
+		'room'
+		'course'
+		'chgteacher'
+		'chgsubject'
+		'chgroom'
+		'notes'
+		'info'
+        """
+
+		pattTeacher = re.compile(r'^(((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\))|([a-zA-ZÄÖÜäöü]+)$')
+		r = {
+			'type': 4,
+			'date': '',
+			'hour': None,
+			'starttime': None,
+			'endtime': None,
+			'teacher': None,
+			'subject': None,
+			'room': None,
+			'course': None,
+			'chgteacher': None,
+			'chgsubject': None,
+			'chgroom': None,
+			'notes': '',
+			'info': ''
+		}
+
+		teacherMatch = pattTeacher.match(row[9])
+		oldTeacher = None
+		newTeacher = None
+		if teacherMatch is not None:
+			if teacherMatch.group(6) is None:
+				newTeacher = teacherMatch.group(4)
+				oldTeacher = teacherMatch.group(5)
+			else:
+				oldTeacher = teacherMatch.group(6)
+
+		# ignore entries, where there is no alternative teacher
+		if newTeacher is None:
+			return None
+
+		r['date'] = row[3]
+		r['teacher'] = oldTeacher
+		r['chgteacher'] = newTeacher
+		r['notes'] = row[11] 
+		# get times
+		entryTime = row[7].strip()
+		starttime = None
+		endtime = None
+		if '-' in entryTime:
+			starttime, endtime = entryTime.split('-')
+			if len(starttime) <= 5:
+				starttime = starttime + ':00'
+			if len(endtime) <= 5:
+				endtime = endtime + ':00'
+		r['starttime'] = starttime
+		r['endtime'] = endtime
+
+		return r
 
 	def parse_page(self, page):
 		planDays = []
