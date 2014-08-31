@@ -805,7 +805,7 @@ class Vertretungsplaner:
 
 	def loadConfig(self):
 		self.config = configparser.ConfigParser()
-		self.config.read("config.ini")
+		self.config.read(["config.ini"], encoding='utf-8')
 
 	def bye(self):
 		print("Auf Wiedersehen!")
