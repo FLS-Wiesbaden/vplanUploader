@@ -121,22 +121,25 @@ class Vertretungsplaner:
 			print("\nChanged/Added new Files: ", ", ".join(todo))
 			for f in todo:
 				f = f.strip()
+				execFound = False
 				if self.config.get('vplan', 'type') == 'daVinci':
 					# switch version
 					if int(self.config.get('vplan', 'version')) == 5:
 						if f.lower().endswith('.html') or f.lower().endswith('.htm'):
+							execFound = True
 							Thread(target=self.handlingPlaner, args=(f,)).start()
 						elif f.lower().endswith('.pdf'):
+							execFound = True
 							Thread(target=self.handlingCanceledPlan, args=(f, )).start()
-						else:
-							print('"%s" will be ignored.' % f)
 					elif int(self.config.get('vplan', 'version')) == 6:
 						if f.lower().endswith('.csv') or f.lower().endswith('.txt'):
+							execFound = True
 							Thread(target=self.handlingDavinciSix, args=(f,)).start()
-						else:
-							print('"%s" will be ignored.' % f)
-					else:
-						print('"%s" will be ignored.' % f)
+				if f.lower().endswith('.json') and not execFound:
+					execFound = True
+					Thread(target=self.handlingJson, args=(f,)).start()
+				elif not execFound:
+					print('"%s" will be ignored.' % f)
 
 		if removed:
 			print("\nRemoved files: ", ", ".join(removed))
@@ -453,7 +456,9 @@ class Vertretungsplaner:
 		'info'
         """
 		pattTeacher = re.compile(r'^(((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\))|([a-zA-ZÄÖÜäöü]+)$')
-		pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+)) )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
+		# changed according to upgrade of daVinci to a newer build - some crazy possibilites now..
+		#pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+)) )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
+		pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+))(, [a-zA-Z0-9 ]+)* )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
 		pattMoved = re.compile(r'^[A-Za-z]+\ (\d{1,2})\.(\d{1,2})\.\ ([a-zA-Z]{2})\ (\d{1,2})\ [a-zA-Z]+$')
 
 		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt verarbeitet.','info')
@@ -471,7 +476,7 @@ class Vertretungsplaner:
 					continue
 
 				if len(row) <= 6:
-					data['plan'].append(self.handlingDavinciSixCancelled(fileName))
+					data['plan'] = self.handlingDavinciSixCancelled(fileName)
 					break
 
 				# check type - specific things we just skip
@@ -523,8 +528,7 @@ class Vertretungsplaner:
 				oldRoom = None
 				newRoom = None
 				if roomMatch is not None:
-					newRoom = roomMatch.group(4)
-					oldRoom = roomMatch.group(0) if roomMatch.group(5) is None else roomMatch.group(5)
+					newRoom, oldRoom = self.parseRoom(row[11], roomMatch)
 
 				# get times
 				entryTime = row[7].strip()
@@ -632,7 +636,7 @@ class Vertretungsplaner:
 					'notes': note,
 					'info': info
 				}
-				r['course'] = className.strip(), 
+				r['course'] = className.strip()
 
 				data.append(r)
 
@@ -706,6 +710,73 @@ class Vertretungsplaner:
 		r['endtime'] = endtime
 
 		return r
+
+	def parseRoom(self, sstr, rm):
+		'''
+		>>> pattRoom.match('+C02, C02, C02 (C14)').groups()
+		('+C02, C02, C02 (C14)', '+C02, C02, C02 ', '+C02', 'C02', ', C02', 'C14', None)
+		>>> pattRoom.match('C02').groups()
+		('C02', None, None, None, None, None, None)
+		>>> pattRoom.match('+C02 (C14)').groups()
+		('+C02 (C14)', '+C02 ', '+C02', 'C02', None, 'C14', None)
+		>>> pattRoom.match('+C02 (C14, C23)').groups()
+		('+C02 (C14, C23)', '+C02 ', '+C02', 'C02', None, 'C14', ', C23')
+		'''
+		newRoom = None
+		oldRoom = None
+
+		if rm is not None:
+			if '+' not in sstr and rm.group(0) is not None:
+				newRoom = rm.group(0).strip()
+			elif '+' in sstr:
+				# find the right NEW entry.
+				for d in rm.groups():
+					if d is not None and '+' in d and not d.endswith(' ') \
+							and ',' not in d and '(' not in d and ')' not in d:
+						newRoom = d.strip().replace('+', '')
+						break
+				# find the right OLD entry, if it is possible.
+				rmgr = []
+				for d in rm.groups():
+					rmgr.insert(0, d)
+				for d in rmgr:
+					if d is not None and '+' not in d \
+							and ',' not in d and '(' not in d and ')' not in d:
+						oldRoom = d.strip()
+						break
+
+		return newRoom, oldRoom
+
+	def handlingJson(self, fileName):
+		path = self.getWatchPath()
+		sep = os.sep
+		absPath = path+sep+fileName
+
+		content = None
+		with open(absPath, 'rb') as f:
+			content = f.read()
+		try:
+			if self.filesAreUTF8():
+				content = content.decode('utf-8')
+			else:
+				content = content.decode('iso-8859-1')
+		except:
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft encodiert.','error')
+			return None
+
+		if content is None:
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei enthält keine Daten.','error')
+			return None
+
+		# now decode.
+		try:
+			jsonDta = json.loads(content)
+		except:
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft.','error')
+			return None
+		else:
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
+			self.send_table(jsonDta, absPath)
 
 	def parse_page(self, page):
 		planDays = []
