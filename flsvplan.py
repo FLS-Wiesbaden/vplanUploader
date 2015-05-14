@@ -134,7 +134,7 @@ class Vertretungsplaner:
 					elif int(self.config.get('vplan', 'version')) == 6:
 						if f.lower().endswith('.csv') or f.lower().endswith('.txt'):
 							execFound = True
-							Thread(target=self.handlingDavinciSix, args=(f,)).start()
+							Thread(target=self.handlingDavinciSixStandIn, args=(f,)).start()
 				if f.lower().endswith('.json') and not execFound:
 					execFound = True
 					Thread(target=self.handlingJson, args=(f,)).start()
@@ -438,54 +438,57 @@ class Vertretungsplaner:
 
 		return resultObj
 
-	def handlingDavinciSix(self, fileName):
-		""" Define a new structure...:
-		'type'
-		'date'
-		'hour'
-		'starttime'
-		'endtime'
-		'teacher'
-		'subject'
-		'room'
-		'course'
-		'chgteacher'
-		'chgsubject'
-		'chgroom'
-		'notes'
-		'info'
-        """
+	def getFieldContent(self, row, field):
+		if field == 'posend' and self.config.getint('fields', field) < 0:
+			field = 'pos'
+
+		if self.config.getint('fields', field) <= 0:
+			return ''
+		else:
+			return row[self.config.getint('fields', field)].strip()
+
+	def handlingDavinciSixStandIn(self, fileName):
+		# some patterns (better don't ask which possibilities we have).
 		pattTeacher = re.compile(r'^(((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\))|([a-zA-ZÄÖÜäöü]+)$')
-		# changed according to upgrade of daVinci to a newer build - some crazy possibilites now..
-		#pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+)) )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
 		pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+))(, [a-zA-Z0-9 ]+)* )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
 		pattMoved = re.compile(r'^[A-Za-z]+\ (\d{1,2})\.(\d{1,2})\.\ ([a-zA-Z]{2})\ (\d{1,2})\ [a-zA-Z]+$')
 
+		# send a notification
 		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt verarbeitet.','info')
 
+		# ok... and now try to read the file.
 		path = self.getWatchPath()
 		sep = os.sep
 		absPath = path+sep+fileName
+		delim = self.config.get('vplan', 'colsep')
 		try:
 			f = open(absPath, 'r', encoding='utf-8' if self.filesAreUTF8() else 'iso-8859-1')
-			reader = csv.reader(f, delimiter='\t')
+			reader = csv.reader(f, delimiter=delim)
 
 			data = {'stand': int(time.time()), 'plan': []}
 			for row in reader:
+				# empty line?
 				if ''.join(row).strip() == '':
 					continue
 
+				# is it really a standin plan?
 				if len(row) <= 6:
-					data['plan'] = self.handlingDavinciSixCancelled(fileName)
+					# try to read cancelled... but only when enabled!
+					if self.config.getboolean('vplan', 'cancelled'):
+						data['plan'] = self.handlingDavinciSixCancelled(fileName)
 					break
-
-				# check type - specific things we just skip
-				if row[0].strip() == self.config.get('vplan', 'txtInterpretYardDuty'):
+				
+				# get first the type.
+				chgtype = self.getFieldContent(row, 'type')
+				chgkind = self.getFieldContent(row, 'kind')
+				# ok.. it is some kind of yard duty change.
+				if chgtype == self.config.get('changetype', 'yarddutyChange'):
 					yd = self.handlingYardDuty(row)
-					if yd is not None:
+					if ya is not None:
 						data['plan'].append(yd)
 					continue
 
+				# now lets define the structure:
 				r = {
 					'type': 1,
 					'date': '',
@@ -503,7 +506,48 @@ class Vertretungsplaner:
 					'info': ''
 				}
 
-				teacherMatch = pattTeacher.match(row[9])
+				# first the class.
+				chgclass = self.getFieldContent(row, 'class')
+				# skip empty classes.
+				if len(chgclass) <= 0:
+					continue
+				else:
+					r['course'] = chgclass
+
+				# date, hour, info, note
+				r['date'] = self.getFieldContent(row, 'date')
+				r['hour'] = self.getFieldContent(row, 'pos')
+				r['info'] = self.getFieldContent(row, 'info')
+				r['notes'] = self.getFieldContent(row, 'note')
+
+				# room.
+				rawRoom = self.getFieldContent(row, 'room')
+				try:
+					roomMatch = pattRoom.match(rawRoom)
+				except Exception as e:
+					roomMatch = None
+					print(e, row)
+				oldRoom = None
+				newRoom = None
+				if roomMatch is not None:
+					newRoom, oldRoom = self.parseRoom(rawRoom, roomMatch)
+				r['room'] = oldRoom if oldRoom is not None else ''
+				r['chgroom'] = newRoom if newRoom is not None else ''
+
+				# subject (i didn't saw the "+" anywhere.. but just to be sure)
+				rawSubject = self.getFieldContent(row, 'subject')
+				oldSubj = None
+				newSubj = None
+				if rawSubject.startswith('+'):
+					newSubj = rawSubject[1:].strip()
+				else:
+					oldSubj = rawSubject
+				r['subject'] = oldSubj if oldSubj is not None else ''
+				r['chgsubject'] = newSubj if newSubj is not None else ''
+
+				# teacher
+				rawTeacher = self.getFieldContent(row, 'teacher')
+				teacherMatch = pattTeacher.match(rawTeacher)
 				oldTeacher = None
 				newTeacher = None
 				if teacherMatch is not None:
@@ -512,26 +556,11 @@ class Vertretungsplaner:
 						oldTeacher = teacherMatch.group(5)
 					else:
 						oldTeacher = teacherMatch.group(6)
+				r['teacher'] = oldTeacher if oldTeacher is not None else ''
+				r['chgteacher'] = newTeacher if newTeacher is not None else ''
 
-				oldSubj = None
-				newSubj = None
-				if row[10].strip().startswith('+'):
-					newSubj = row[10].strip()[1:].strip()
-				else:
-					oldSubj = row[10].strip()
-
-				try:
-					roomMatch = pattRoom.match(row[11])
-				except Exception as e:
-					roomMatch = None
-					print(e, row)
-				oldRoom = None
-				newRoom = None
-				if roomMatch is not None:
-					newRoom, oldRoom = self.parseRoom(row[11], roomMatch)
-
-				# get times
-				entryTime = row[7].strip()
+				# get the times
+				entryTime = self.getFieldContent(row, 'time')
 				starttime = None
 				endtime = None
 				if '-' in entryTime:
@@ -540,25 +569,14 @@ class Vertretungsplaner:
 						starttime = starttime + ':00'
 					if len(endtime) <= 5:
 						endtime = endtime + ':00'
-
-				r['date'] = row[3] # Date
-				r['hour'] = row[5] # School-Hour
 				r['starttime'] = starttime
 				r['endtime'] = endtime
-				r['teacher'] = oldTeacher if oldTeacher is not None else '' # Original teacher
-				r['subject'] = oldSubj if oldSubj is not None else '' # Original subject
-				r['room'] = oldRoom if oldRoom is not None else '' # Original room
-				r['course'] = row[12] # Course
-				r['chgteacher'] = newTeacher if newTeacher is not None else '' # New teacher
-				r['chgsubject'] = newSubj if newSubj is not None else '' # New subject
-				r['chgroom'] = newRoom if newRoom is not None else '' # New room
-				r['info'] = row[13] # infos
-				r['notes'] = row[14] # notes
 
-				if row[13].strip() == '' and row[1] == self.config.get('vplan', 'txtInterpretFrei'):
-						r['notes'] = self.config.get('vplan', 'txtReplaceFrei')
-				elif self.config.get('vplan', 'txtInterpretMoved').lower() in row[1].lower():
-					# is this a moved item?
+				# if class is missing => set the note "Frei"
+				if len(r['info']) <= 0 and chgkind == self.config.get('changekind', 'classFree'):
+					r['notes'] = self.config.get('vplan', 'txtReplaceFree')
+				# maybe it was moved?
+				elif self.config.get('changekind', 'moved').lower() in chgkind:
 					moveMatch = pattMoved.match(row[1].strip())
 					if moveMatch is not None:
 						day, month, weekday, hour = moveMatch.groups()
@@ -568,13 +586,11 @@ class Vertretungsplaner:
 						r['info'] = self.config.get('vplan', 'txtMovedInfo')
 						r['notes'] = self.config.get('vplan', 'txtMovedNote').format(weekday, hour, day, month)
 
-				if row[12].strip() == '':
-					# we have no course. So we filter it out!
-					pass
-				else:
-					data['plan'].append(r)
-					start = int(row[5]) + 1
-					end = int(row[6])
+				chgclass = chgclass.split(',')
+				for cl in chgclass:
+					r['class'] = cl.strip()
+					start = int(self.getFieldContent(row, 'pos'))
+					end = int(self.getFieldContent(row, 'posend'))
 					while start <= end:
 						r['hour'] = start
 						data['plan'].append(r)
