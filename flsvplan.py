@@ -484,7 +484,7 @@ class Vertretungsplaner:
 				# ok.. it is some kind of yard duty change.
 				if chgtype == self.config.get('changetype', 'yarddutyChange'):
 					yd = self.handlingYardDuty(row)
-					if ya is not None:
+					if yd is not None:
 						data['plan'].append(yd)
 					continue
 
