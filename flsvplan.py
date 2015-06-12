@@ -450,6 +450,7 @@ class Vertretungsplaner:
 	def handlingDavinciSixStandIn(self, fileName):
 		# some patterns (better don't ask which possibilities we have).
 		pattTeacher = re.compile(r'^(((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\))|([a-zA-ZÄÖÜäöü]+)$')
+		pattSubject = re.compile(r'^(((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\))|([a-zA-ZÄÖÜäöü]+)$')
 		pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+))(, [a-zA-Z0-9 ]+)* )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
 		pattMoved = re.compile(r'^[A-Za-z]+\ (\d{1,2})\.(\d{1,2})\.\ ([a-zA-Z]{2})\ (\d{1,2})\ [a-zA-Z]+$')
 
@@ -461,6 +462,9 @@ class Vertretungsplaner:
 		sep = os.sep
 		absPath = path+sep+fileName
 		delim = self.config.get('vplan', 'colsep')
+		if delim == '\\t':
+			delim = '\t'
+		print(delim)
 		try:
 			f = open(absPath, 'r', encoding='utf-8' if self.filesAreUTF8() else 'iso-8859-1')
 			reader = csv.reader(f, delimiter=delim)
@@ -536,12 +540,15 @@ class Vertretungsplaner:
 
 				# subject (i didn't saw the "+" anywhere.. but just to be sure)
 				rawSubject = self.getFieldContent(row, 'subject')
+				subjectMatch = pattSubject.match(rawSubject)
 				oldSubj = None
 				newSubj = None
-				if rawSubject.startswith('+'):
-					newSubj = rawSubject[1:].strip()
-				else:
-					oldSubj = rawSubject
+				if subjectMatch is not None:
+					if subjectMatch.group(6) is None:
+						newSubj = subjectMatch.group(4)
+						oldSubj = subjectMatch.group(5)
+					else:
+						oldSubj = subjectMatch.group(6)
 				r['subject'] = oldSubj if oldSubj is not None else ''
 				r['chgsubject'] = newSubj if newSubj is not None else ''
 
@@ -599,8 +606,9 @@ class Vertretungsplaner:
 			f.close()
 			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
 			self.send_table(data, absPath)
-		except:
+		except Exception as e:
 			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft.','error')
+			print('Error: %s' % (str(e),))
 
 	def handlingDavinciSixCancelled(self, fileName):
 		path = self.getWatchPath()
