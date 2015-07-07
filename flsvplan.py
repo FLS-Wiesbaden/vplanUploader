@@ -6,6 +6,7 @@
 
 import urllib.request, urllib.parse, urllib.error, traceback, sys, re
 import time, os, os.path, json, codecs, base64, configparser, shutil, csv
+from xml.dom import minidom 
 from TableParser import TableParser
 from layout_scanner import *
 from searchplaner import *
@@ -135,6 +136,9 @@ class Vertretungsplaner:
 						if f.lower().endswith('.csv') or f.lower().endswith('.txt'):
 							execFound = True
 							Thread(target=self.handlingDavinciSixStandIn, args=(f,)).start()
+						elif f.lower().endswith('.xml'):
+							execFound = True
+							Thread(target=self.handlingDavinciXml, args=(f,)).start()
 				if f.lower().endswith('.json') and not execFound:
 					execFound = True
 					Thread(target=self.handlingJson, args=(f,)).start()
@@ -442,14 +446,14 @@ class Vertretungsplaner:
 		if field == 'posend' and self.config.getint('fields', field) < 0:
 			field = 'pos'
 
-		if self.config.getint('fields', field) <= 0:
+		if self.config.getint('fields', field) < 0:
 			return ''
 		else:
 			return row[self.config.getint('fields', field)].strip()
 
 	def handlingDavinciSixStandIn(self, fileName):
 		# some patterns (better don't ask which possibilities we have).
-		pattTeacher = re.compile(r'^(((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\))|([a-zA-ZÄÖÜäöü]+)$')
+		pattTeacher = re.compile(r'^(((\+([-a-zA-ZÄÖÜäöü,\.]+)) )?\(([-a-zA-ZÄÖÜäöü,\.]+)\))|([-a-zA-ZÄÖÜäöü,\.]+)$')
 		pattSubject = re.compile(r'^(((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\))|([a-zA-ZÄÖÜäöü]+)$')
 		pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+))(, [a-zA-Z0-9 ]+)* )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
 		pattMoved = re.compile(r'^[A-Za-z]+\ (\d{1,2})\.(\d{1,2})\.\ ([a-zA-Z]{2})\ (\d{1,2})\ [a-zA-Z]+$')
@@ -464,7 +468,6 @@ class Vertretungsplaner:
 		delim = self.config.get('vplan', 'colsep')
 		if delim == '\\t':
 			delim = '\t'
-		print(delim)
 		try:
 			f = open(absPath, 'r', encoding='utf-8' if self.filesAreUTF8() else 'iso-8859-1')
 			reader = csv.reader(f, delimiter=delim)
@@ -665,6 +668,240 @@ class Vertretungsplaner:
 				data.append(r)
 
 		return data
+
+	def handlingDavinciXml(self, fileName):
+		# some patterns (better don't ask which possibilities we have).
+		pattTeacher = re.compile(r'^(((\+([-a-zA-ZÄÖÜäöü,\.]+)) )?\(([-a-zA-ZÄÖÜäöü,\.]+)\))|([-a-zA-ZÄÖÜäöü,\.]+)$')
+		pattSubject = re.compile(r'^(((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\))|([a-zA-ZÄÖÜäöü]+)$')
+		pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+))(, [a-zA-Z0-9 ]+)* )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
+		pattMoved = re.compile(r'^[A-Za-z]+\ (\d{1,2})\.(\d{1,2})\.\ ([a-zA-Z]{2})\ (\d{1,2})\ [a-zA-Z]+$')
+		pattClass = re.compile(r'^(\((([-a-zA-Z0-9 ])+(, )?)*\)(, )?)?(([-a-zA-Z0-9 ]+)(, )?)?$')
+		pattMovedFrom = re.compile(self.config.get('changekind', 'movedFrom'))
+		pattMovedTo = re.compile(self.config.get('changekind', 'movedTo'))
+
+		# send a notification
+		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt verarbeitet.','info')
+
+		# ok... and now try to read the file.
+		path = self.getWatchPath()
+		sep = os.sep
+		absPath = path+sep+fileName
+
+		absentClasses = {}
+		
+		try:
+			f = open(absPath, 'r', encoding='utf-8' if self.filesAreUTF8() else 'iso-8859-1')
+			reader = minidom.parse(f)
+			data = {'stand': int(time.time()), 'plan': []}
+
+			# we are only interested in "Lessons"
+			lessons = reader.getElementsByTagName('daysubstclass')
+			for les in lessons:
+				lesList = les.getElementsByTagName('Day')
+				for day in lesList:
+					itemList = day.getElementsByTagName('Item')
+					for l in itemList:
+						startPos = int(self.getXmlRaw(l.getElementsByTagName('Pos')[0]))
+						endPos = int(self.getXmlRaw(l.getElementsByTagName('Until')[0]))
+						classes = []
+						absClasses = []
+						chgType = 0
+						planType = 1
+
+						rawDate = self.getXmlRaw(l.getElementsByTagName('Date')[0])
+						entryDate = '%s.%s.%s' % (rawDate[6:], rawDate[4:6], rawDate[:4])
+						absentClasses[entryDate] = []
+						rawStartTime = l.getElementsByTagName('Start')
+						rawEndTime = l.getElementsByTagName('Finish')
+						startTime = None
+						finishTime = None
+						if len(rawStartTime) > 0:
+							rawStartTime = self.getXmlRaw(rawStartTime[0])
+							startTime = '%s:%s:00' % (rawStartTime[:2], rawStartTime[2:4])
+
+						if len(rawEndTime) > 0:
+							rawEndTime = self.getXmlRaw(rawEndTime[0])
+							finishTime = '%s:%s:00' % (rawEndTime[:2], rawEndTime[2:4])
+
+						# Subject
+						subject = None
+						rawSubject = l.getElementsByTagName('Title')
+						if len(rawSubject) > 0:
+							chgsubject = self.getXmlRaw(rawSubject[0])
+							# maybe its given in subject.
+							subjectMatch = pattSubject.match(chgsubject)
+							oldSubj = None
+							newSubj = None
+							if subjectMatch is not None:
+								if subjectMatch.group(6) is None:
+									newSubj = subjectMatch.group(4)
+									oldSubj = subjectMatch.group(5)
+								else:
+									oldSubj = subjectMatch.group(6)
+								subject = oldSubj
+								chgsubject = newSubj
+							else:
+								subject = chgsubject
+								chgsubject = None
+						else:
+							subjct = None
+							chgsubject = None
+
+						# Change Room
+						rawRoom = l.getElementsByTagName('Room')
+						room = None
+						if len(rawRoom) > 0:
+							chgroom = self.getXmlRaw(rawRoom[0])
+							rawRoom = chgroom
+							try:
+								roomMatch = pattRoom.match(rawRoom)
+							except Exception as e:
+								roomMatch = None
+								print(e, rawRoom)
+							oldRoom = None
+							newRoom = None
+							if roomMatch is not None:
+								newRoom, oldRoom = self.parseRoom(rawRoom, roomMatch)
+								if oldRoom is None and newRoom is not None:
+									room = newRoom
+								elif oldRoom is not None and newRoom is not None:
+									room = oldRoom
+									chgroom = newRoom
+								else:
+									room = rawRoom
+							else:
+								room = rawRoom
+								chgroom = None
+						else:
+							room = None
+							chgroom = None
+						
+						# Change Teacher
+						rawTeachers = l.getElementsByTagName('Teacher')
+						if len(rawTeachers) > 0:
+							chgteacher = self.getXmlRaw(rawTeachers[0])
+							teacherMatch = pattTeacher.match(chgteacher)
+							oldTeacher = None
+							newTeacher = None
+							if teacherMatch is not None:
+								if teacherMatch.group(6) is None:
+									newTeacher = teacherMatch.group(4)
+									oldTeacher = teacherMatch.group(5)
+								else:
+									oldTeacher = teacherMatch.group(6)
+								teacher = oldTeacher
+								chgteacher = newTeacher
+							else:
+								teacher = chgteacher
+								chgteacher = None
+						else:
+							teacher = None
+							chgteacher = None
+
+						# additional info
+						note = ''
+						info = ''
+
+						rawInfo = l.getElementsByTagName('Caption')
+						if len(rawInfo) > 0:
+							info = self.getXmlRaw(rawInfo[0])
+
+						# some movement info?
+						# here, we support advanced regexp.
+						if len(info) > 0:
+							tstMove = pattMovedFrom.match(info)
+							if tstMove is not None:
+								day, month, non = tstMove.group(1).split('.')
+								weekday = tstMove.group(2)
+								mvstr = tstMove.group(3)
+								mvend = tstMove.group(5)
+								if mvend is not None:
+									hour = '%s.-%s.' % (mvstr, mvend)
+								else:
+									hour = '%s.' % (mvstr,)
+								info = self.config.get('vplan', 'txtMovedInfo')
+								note = self.config.get('vplan', 'txtMovedNote').format(weekday, hour, int(day), int(month))
+								chgType = 32
+							else:
+								tstMove = pattMovedTo.match(info)
+								if tstMove is not None:
+									chgType = 16
+									info = self.config.get('vplan', 'txtMoved')
+								elif info == self.config.get('changekind', 'classFree'):
+									chgType = 64
+
+						# get the list of affected classes
+						cl = self.getXmlRaw(l.getElementsByTagName('Class')[0]).strip()
+						clM = pattClass.match(cl)
+						if clM is None:
+							classes.append(cl)
+						else:
+							# first is always absent!
+							absent = clM.group(1)
+							if absent is not None:
+								absent = absent.strip()[1:-1]
+								if absent[-1:] == ')':
+									absent = absent[:-1]
+								for i in absent.split(', '):
+									absClasses.append(i)
+								planType = 2
+								chgType = 64
+
+							normal = clM.group(len(clM.groups()) - 1)
+							if normal is not None:
+								classes.append(normal)
+
+						# now generate the records
+						for className in classes:
+							if className in absClasses:
+								newNote = self.config.get('vplan', 'txtReplaceFree')
+							else:
+								newNote = note
+
+							for hour in range(startPos, endPos + 1):
+								r = {
+									'type': planType,
+									'date': entryDate,
+									'hour': hour,
+									'starttime': startTime,
+									'endtime': finishTime,
+									'teacher': teacher,
+									'subject': subject,
+									'room': room,
+									'chgType': chgType,
+									'course': None,
+									'chgteacher': chgteacher,
+									'chgsubject': chgsubject,
+									'chgroom': chgroom,
+									'notes': newNote,
+									'info': info
+								}
+								r['course'] = className.strip()
+
+								exist = False
+								# does it already exist there?
+								for entry in data['plan']:
+									if entry['date'] == r['date'] \
+									 and entry['hour'] == r['hour'] \
+									 and entry['course'] == r['course'] \
+									 and entry['teacher'] == r['teacher'] \
+									 and entry['subject'] == r['subject'] \
+									 and entry['room'] == r['room']:
+										exist = True
+										break
+
+								if not exist:
+									data['plan'].append(r)
+
+			f.close()
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
+			import pprint
+			pprint.pprint(data)
+			self.send_table(data, absPath)
+		except Exception as e:
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft.','error')
+			print('Error: %s' % (str(e),))
+			raise
 
 	def handlingYardDuty(self, row):
 		""" Define a new structure...:
@@ -924,6 +1161,9 @@ class Vertretungsplaner:
 
 		if self.tray is not None:
 			self.tray.showInfo('Vertretungsplaner startet...', 'Bei Problemen wenden Sie sich bitte an das Website-Team der Friedrich-List-Schule Wiesbaden.')
+
+	def getXmlRaw(self, element):
+		return element.childNodes[0].wholeText
 
 	def __init__(self):
 		self.lastFile = ''
