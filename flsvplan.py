@@ -675,7 +675,6 @@ class Vertretungsplaner:
 		pattSubject = re.compile(r'^(((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\))|([a-zA-ZÄÖÜäöü]+)$')
 		pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+))(, [a-zA-Z0-9 ]+)* )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
 		pattMoved = re.compile(r'^[A-Za-z]+\ (\d{1,2})\.(\d{1,2})\.\ ([a-zA-Z]{2})\ (\d{1,2})\ [a-zA-Z]+$')
-		#pattClass = re.compile(r'^(\((([-a-zA-Z0-9 ])+(, )?)*\)(, )?)?(([-a-zA-Z0-9 ]+)(, )?)?$')
 		pattClass = re.compile(r'^(\((([-a-zA-Z0-9 ])+(, )?)*\)(, )?)?((([-a-zA-Z0-9 ]+)(, )?)*)?$')
 		pattMovedFrom = re.compile(self.config.get('changekind', 'movedFrom'))
 		pattMovedTo = re.compile(self.config.get('changekind', 'movedTo'))
@@ -864,7 +863,11 @@ class Vertretungsplaner:
 									for idx in range(strGroup, endGroup + 1):
 										normal = clM.group(idx)
 										if normal is not None:
-											classes.append(normal)
+											if ', ' in normal:
+												for cl in normal.split(', '):
+													classes.append(cl)
+											else:
+												classes.append(normal)
 								except Exception as e:
 									print('Could not retrieve class names because of %s' % (str(e),))
 
