@@ -675,7 +675,8 @@ class Vertretungsplaner:
 		pattSubject = re.compile(r'^(((\+([a-zA-ZÄÖÜäöü]+)) )?\(([a-zA-ZÄÖÜäöü]+)\))|([a-zA-ZÄÖÜäöü]+)$')
 		pattRoom = re.compile(r'^(|[a-zA-Z0-9 ]+|((\+([a-zA-Z0-9 ]+))(, [a-zA-Z0-9 ]+)* )?\(([a-zA-Z0-9 ]+)(, [a-zA-Z0-9 ]+)?\))$')
 		pattMoved = re.compile(r'^[A-Za-z]+\ (\d{1,2})\.(\d{1,2})\.\ ([a-zA-Z]{2})\ (\d{1,2})\ [a-zA-Z]+$')
-		pattClass = re.compile(r'^(\((([-a-zA-Z0-9 ])+(, )?)*\)(, )?)?(([-a-zA-Z0-9 ]+)(, )?)?$')
+		#pattClass = re.compile(r'^(\((([-a-zA-Z0-9 ])+(, )?)*\)(, )?)?(([-a-zA-Z0-9 ]+)(, )?)?$')
+		pattClass = re.compile(r'^(\((([-a-zA-Z0-9 ])+(, )?)*\)(, )?)?((([-a-zA-Z0-9 ]+)(, )?)*)?$')
 		pattMovedFrom = re.compile(self.config.get('changekind', 'movedFrom'))
 		pattMovedTo = re.compile(self.config.get('changekind', 'movedTo'))
 
@@ -775,6 +776,9 @@ class Vertretungsplaner:
 						else:
 							room = None
 							chgroom = None
+
+						if room == chgroom:
+							chgroom = None
 						
 						# Change Teacher
 						rawTeachers = l.getElementsByTagName('Teacher')
@@ -806,6 +810,11 @@ class Vertretungsplaner:
 						if len(rawInfo) > 0:
 							info = self.getXmlRaw(rawInfo[0])
 
+						# remove some kind of infos.
+						if len(info) > 0:
+							if info in self.config.get('vplan', 'rmvInfos').split(';'):
+								info = ''
+
 						# some movement info?
 						# here, we support advanced regexp.
 						if len(info) > 0:
@@ -819,7 +828,7 @@ class Vertretungsplaner:
 									hour = '%s.-%s.' % (mvstr, mvend)
 								else:
 									hour = '%s.' % (mvstr,)
-								info = self.config.get('vplan', 'txtMovedInfo')
+								info = ''
 								note = self.config.get('vplan', 'txtMovedNote').format(weekday, hour, int(day), int(month))
 								chgType = 32
 							else:
@@ -844,12 +853,20 @@ class Vertretungsplaner:
 									absent = absent[:-1]
 								for i in absent.split(', '):
 									absClasses.append(i)
+									classes.append(i)
 								planType = 2
-								chgType = 64
+								chgType = 1
 
-							normal = clM.group(len(clM.groups()) - 1)
-							if normal is not None:
-								classes.append(normal)
+							if chgType != 1:
+								try:
+									strGroup = 6
+									endGroup = len(clM.groups()) - 3
+									for idx in range(strGroup, endGroup + 1):
+										normal = clM.group(idx)
+										if normal is not None:
+											classes.append(normal)
+								except Exception as e:
+									print('Could not retrieve class names because of %s' % (str(e),))
 
 						# now generate the records
 						for className in classes:
@@ -877,6 +894,16 @@ class Vertretungsplaner:
 									'info': info
 								}
 								r['course'] = className.strip()
+								# in case of cancelled class: remove all data!
+								if planType == 2:
+									r['teacher'] = None
+									r['subject'] = None
+									r['room'] = None
+									r['chgteacher'] = None
+									r['chgsubject'] = None
+									r['chgroom'] = None
+									r['notes'] = ''
+									r['hour'] = 0
 
 								exist = False
 								# does it already exist there?
@@ -895,8 +922,6 @@ class Vertretungsplaner:
 
 			f.close()
 			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
-			import pprint
-			pprint.pprint(data)
 			self.send_table(data, absPath)
 		except Exception as e:
 			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft.','error')
