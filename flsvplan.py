@@ -12,8 +12,6 @@ from layout_scanner import *
 from searchplaner import *
 from threading import Thread
 from Printer import Printer
-#from pprint import pprint
-#from pydump import pydump
 from datetime import datetime
 import pickle
 import traceback
@@ -139,6 +137,9 @@ class Vertretungsplaner:
 						elif f.lower().endswith('.xml'):
 							execFound = True
 							Thread(target=self.handlingDavinciXml, args=(f,)).start()
+						elif f.lower().endswith('.json'):
+							execFound = True
+							Thread(target=self.handlingDavinciJson, args=(f,)).start()
 				if f.lower().endswith('.json') and not execFound:
 					execFound = True
 					Thread(target=self.handlingJson, args=(f,)).start()
@@ -833,8 +834,16 @@ class Vertretungsplaner:
 							else:
 								tstMove = pattMovedTo.match(info)
 								if tstMove is not None:
+									day, month, non = tstMove.group(1).split('.')
+									weekday = tstMove.group(2)
+									mvstr = tstMove.group(3)
+									mvend = tstMove.group(5)
+									if mvend is not None:
+										hour = '%s.-%s.' % (mvstr, mvend)
+									else:
+										hour = '%s.' % (mvstr,)
+									info = self.config.get('vplan', 'txtMoved').format(weekday, hour, int(day), int(month))
 									chgType = 16
-									info = self.config.get('vplan', 'txtMoved')
 								elif info == self.config.get('changekind', 'classFree'):
 									chgType = 64
 
@@ -922,6 +931,254 @@ class Vertretungsplaner:
 
 								if not exist:
 									data['plan'].append(r)
+
+			f.close()
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
+			self.send_table(data, absPath)
+		except Exception as e:
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft.','error')
+			print('Error: %s' % (str(e),))
+
+	def handlingDavinciJson(self, fileName):
+		# some patterns (better don't ask which possibilities we have).
+		pattMovedFrom = re.compile(self.config.get('changekind', 'movedFrom'))
+		pattMovedTo = re.compile(self.config.get('changekind', 'movedTo'))
+
+		# send a notification
+		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt verarbeitet.','info')
+
+		# ok... and now try to read the file.
+		path = self.getWatchPath()
+		sep = os.sep
+		absPath = path+sep+fileName
+
+		absentClasses = {}
+		
+		try:
+			planContent = None
+			with open(absPath, 'rb') as f:
+				planContent = f.read()
+
+			if planContent is None:
+				raise Exception('Could not read the plan!')
+
+			if self.filesAreUTF8():
+				try:
+					planContent = json.loads(planContent.decode('utf-8'))
+				except:
+					planContent = json.loads(planContent.decode('utf-8-sig'))
+			else:
+				planContent = json.loads(planContent.decode('iso-8859-1'))
+
+			data = {'stand': int(time.time()), 'plan': [], 'class': {}}
+			
+			# first load the time frames to obtain the "hours"
+			timeframes = {}
+			for tf in planContent['result']['timeframes']:
+				if tf['code'] == 'Standard':
+					for t in tf['timeslots']:
+						timeframes[t['startTime']] = int(t['label'])
+
+			# teams
+			teams = {}
+			for tf in planContent['result']['teams']:
+				teams[tf['id']] = tf['description']
+
+			# build the class dict
+			for tf in planContent['result']['classes']:
+				data['class'][tf['code']] = ''
+				for tr in tf['teamRefs']:
+					if len(tr) > 0:
+						if tr in teams.keys():
+							data['class'][tf['code']] = teams[tr]
+
+			# we are only interested in the displaySchedule of result
+			for les in planContent['result']['displaySchedule']['lessonTimes']:
+				# ignore this entry, if there is no changes block.
+				if 'changes' not in les.keys():
+					continue
+
+				# now take the changes block.
+				planType = 1
+				entryDates = []
+				hour = None
+				startTime = None
+				endTime = None
+				teacher = None
+				subject = None
+				room = None
+				chgType = None
+				courses = []
+				chgTeacher = None
+				chgSubject = None
+				chgRoom = None
+				notes = ''
+				info = ''
+
+				# Dates, Hours, Times
+				for dt in les['dates']:
+					entryDates.append('%s.%s.%s' % (dt[6:], dt[4:6], dt[:4]))
+
+				# The times are now mandatory because of the timetable.
+				startTime = '%s:%s:00' % (les['startTime'][:2], les['startTime'][2:4])
+				endTime = '%s:%s:00' % (les['endTime'][:2], les['endTime'][2:4])
+				hour = timeframes[les['startTime']]
+				try:
+					subject = les['subjectCode']
+				except KeyError as e:
+					# is it allowed, if the reasonType == classAbsence!
+					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
+						continue
+						#raise
+
+				# courses
+				for cl in les['classCodes']:
+					courses.append(cl)
+
+				# the teacher (strange that it is a list)
+				try:
+					for t in les['teacherCodes']:
+						teacher = t
+						break
+				except KeyError as e:
+					# is it allowed, if the reasonType == classAbsence!
+					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
+						raise
+
+				# Room (we also consider here only the first)
+				try:
+					for r in les['roomCodes']:
+						room = r
+						break
+				except KeyError as e:
+					# is it allowed, if the reasonType == classAbsence!
+					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
+						raise
+
+				# some information?
+				if 'caption' in les['changes'].keys():
+					info = les['changes']['caption']
+					if 'information' in les['changes'].keys():
+						notes = les['changes']['information']
+				elif 'information' in les['changes'].keys():
+					info = les['changes']['information']
+
+				# new subject?
+				if 'newSubjectCode' in les['changes'].keys():
+					chgSubject = les['changes']['newSubjectCode']
+				
+				# new teacher?
+				if 'newTeacherCodes' in les['changes'].keys():
+					for t in les['changes']['newTeacherCodes']:
+						chgTeacher = t
+						break
+				
+				# new room?
+				if 'newRoomCodes' in les['changes'].keys():
+					for t in les['changes']['newRoomCodes']:
+						chgRoom = t
+						break
+				
+				# class missing?
+				if 'reasonType' in les['changes'].keys() and les['changes']['reasonType'] == 'classAbsence':
+					planType = 2
+					chgType = 1
+				
+				# hour cancelled?
+				if 'cancelled' in les['changes'].keys():
+					# it was moved!
+					if les['changes']['cancelled'] == 'movedAway':
+						# it was moved far away. Lets get the details!
+						if 'caption' in les['changes'].keys():
+							tstMove = pattMovedTo.match(les['changes']['caption'])
+							if tstMove is not None:
+								day, month, non = tstMove.group(1).split('.')
+								weekday = tstMove.group(2)
+								mvstr = tstMove.group(3)
+								mvend = tstMove.group(5)
+								if mvend is not None:
+									hourtxt = '%s.-%s.' % (mvstr, mvend)
+								else:
+									hourtxt = '%s.' % (mvstr,)
+								info = ''
+								notes = self.config.get('vplan', 'txtMoved').format(weekday, hourtxt, int(day), int(month))
+
+						chgType = 16
+					# or the hour is just cancelled.
+					elif les['changes']['cancelled'] == 'classFree':
+						chgType = 64
+						# if the info + notes field is empty, lets populate the field by our own:
+						if len(info) == 0 and len(notes) == 0:
+							info = self.config.get('vplan', 'txtReplaceFree')
+
+				# date moved from? Then lets get the detail!
+				if 'caption' in les['changes'].keys():
+					tstMove = pattMovedFrom.match(les['changes']['caption'])
+					if tstMove is not None:
+						day, month, non = tstMove.group(1).split('.')
+						weekday = tstMove.group(2)
+						mvstr = tstMove.group(3)
+						mvend = tstMove.group(5)
+						if mvend is not None:
+							hourtxt = '%s.-%s.' % (mvstr, mvend)
+						else:
+							hourtxt = '%s.' % (mvstr,)
+						info = ''
+						notes = self.config.get('vplan', 'txtMovedNote').format(weekday, hourtxt, int(day), int(month))
+						chgType = 32
+
+				# remove some kind of infos.
+				if len(info) > 0:
+					if info in self.config.get('vplan', 'rmvInfos').split(';'):
+						info = ''
+
+				# now generate the records
+				for entryDate in entryDates:
+					for className in courses:
+						r = {
+							'type': planType,
+							'date': entryDate,
+							'hour': hour,
+							'starttime': startTime,
+							'endtime': endTime,
+							'teacher': teacher,
+							'subject': subject,
+							'room': room,
+							'chgType': chgType,
+							'course': className,
+							'chgteacher': chgTeacher,
+							'chgsubject': chgSubject,
+							'chgroom': chgRoom,
+							'notes': notes,
+							'info': info
+						}
+
+						# in case of cancelled class: remove all data!
+						if planType == 2:
+							r['teacher'] = None
+							r['subject'] = None
+							r['room'] = None
+							r['chgteacher'] = None
+							r['chgsubject'] = None
+							r['chgroom'] = None
+							r['notes'] = ''
+							r['hour'] = 0
+
+						exist = False
+						# does it already exist there?
+						for entry in data['plan']:
+							if entry['date'] == r['date'] \
+							 and entry['hour'] == r['hour'] \
+							 and entry['course'] == r['course'] \
+							 and entry['teacher'] == r['teacher'] \
+							 and entry['subject'] == r['subject'] \
+							 and entry['room'] == r['room']:
+								#print('Tried to create a duplicate entry!')
+								exist = True
+								break
+
+						if not exist:
+							data['plan'].append(r)
 
 			f.close()
 			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
