@@ -1029,11 +1029,13 @@ class Vertretungsplaner:
 					# is it allowed, if the reasonType == classAbsence!
 					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
 						continue
-						#raise
 
 				# courses
-				for cl in les['classCodes']:
-					courses.append(cl)
+				try:
+					for cl in les['classCodes']:
+						courses.append(cl)
+				except KeyError:
+					continue
 
 				# the teacher (strange that it is a list)
 				try:
