@@ -8,7 +8,6 @@ import urllib.request, urllib.parse, urllib.error, traceback, sys, re
 import time, os, os.path, json, codecs, base64, configparser, shutil, csv
 from xml.dom import minidom 
 from TableParser import TableParser
-from layout_scanner import *
 from searchplaner import *
 from threading import Thread
 from Printer import Printer
@@ -127,9 +126,6 @@ class Vertretungsplaner:
 						if f.lower().endswith('.html') or f.lower().endswith('.htm'):
 							execFound = True
 							Thread(target=self.handlingPlaner, args=(f,)).start()
-						elif f.lower().endswith('.pdf'):
-							execFound = True
-							Thread(target=self.handlingCanceledPlan, args=(f, )).start()
 					elif int(self.config.get('vplan', 'version')) == 6:
 						if f.lower().endswith('.csv') or f.lower().endswith('.txt'):
 							execFound = True
@@ -396,28 +392,6 @@ class Vertretungsplaner:
 		else:
 			print('Datei gefunden, die keine Tabelle enthaelt!')
 
-	def handlingCanceledPlan(self,fileName):
-		path = self.getWatchPath()
-		sep = os.sep
-		absPath = path+sep+fileName
-		tmp = False
-
-		print("\nThis is what you want: ", absPath)
-		try:
-			tmp = self.parse_canceledPlan(absPath)
-			for k,v in tmp['plan'].items():
-				print('Anzahl abbestellter Klassen fuer Tag %s: %i' % (k, len(tmp['plan'][k])))
-		except Exception as detail:
-			tmp = False
-			print('Err ', detail)
-
-		if tmp != False:
-			print('Infos gefunden!')
-			self.showToolTip('Neuer Vertretungsplan','Es wurde ein neues PDF-Dokument gefunden! Es wird jetzt hochgeladen.','info')
-			self.send_table(tmp, absPath, 'canceled', convert=False)
-		else:
-			print('Datei gefunden, die keine Infos enthaelt!')
-
 	def convert_to_canceled(self, tmp):
 		resultObj = {'stand': int(time.time()), 'plan': {}}
 
@@ -427,19 +401,6 @@ class Vertretungsplaner:
 			if mysqldate not in resultObj['plan']:
 				resultObj['plan'][mysqldate] = []
 			resultObj['plan'][mysqldate].append({'number': row[6].strip(), 'info': '%s-%s' % (row[2], row[5]), 'note': row[7]})
-
-		return resultObj
-
-	def parse_canceledPlan(self, absPath):
-		resultObj = {'stand': int(time.time()), 'plan': {}}
-		pages = get_pages(absPath)
-		if pages is None:
-			pages = []
-
-		for f in pages:
-			retList = self.parse_page(f)
-			for k,v in retList.items():
-				resultObj['plan'][k] = v
 
 		return resultObj
 
