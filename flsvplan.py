@@ -12,15 +12,19 @@ from searchplaner import *
 from threading import Thread
 from Printer import Printer
 from datetime import datetime
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import pyqtSignal, QObject
+from errorlog import ErrorDialog
 import pickle
 import traceback
 import inspect
+import pprint
 
 app = None
 if os.name in 'nt':
 	import win32gui
 elif os.name == 'posix':
-	#from PyQt4 import QtGui
+	#from PyQt5 import QtGui
 	#pyapp = QtGui.QApplication(sys.argv)
 	pass
 
@@ -38,7 +42,8 @@ class WatchFile:
 	def getFullName(self):
 		return '%s/%s' % (self.path, self.name)
 
-class Vertretungsplaner:
+class Vertretungsplaner(QObject):
+	showDlg = pyqtSignal()
 
 	def getWatchPath(self):
 		return self.config.get("default", "path")
@@ -135,8 +140,13 @@ class Vertretungsplaner:
 							Thread(target=self.handlingDavinciXml, args=(f,)).start()
 						elif f.lower().endswith('.json'):
 							execFound = True
-							Thread(target=self.handlingDavinciJson, args=(f,)).start()
-				if f.lower().endswith('.json') and not execFound:
+							# As we have an error dialog here, do not send in background!
+							#Thread(target=self.handlingDavinciJson, args=(f,)).start()
+							try:
+								self.handlingDavinciJson(f)
+							except:
+								pass
+				elif f.lower().endswith('.json') and not execFound:
 					execFound = True
 					Thread(target=self.handlingJson, args=(f,)).start()
 				elif not execFound:
@@ -907,6 +917,7 @@ class Vertretungsplaner:
 
 		# send a notification
 		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt verarbeitet.','info')
+		self.dlg.cleanup()
 
 		# ok... and now try to read the file.
 		path = self.getWatchPath()
@@ -989,6 +1000,8 @@ class Vertretungsplaner:
 				except KeyError as e:
 					# is it allowed, if the reasonType == classAbsence!
 					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
+						self.dlg.addData(pprint.pformat(les))
+						self.dlg.addInfo('Could not found "subjectCode" in record - skipping!')
 						continue
 
 				# courses
@@ -996,6 +1009,8 @@ class Vertretungsplaner:
 					for cl in les['classCodes']:
 						courses.append(cl)
 				except KeyError:
+					self.dlg.addData(pprint.pformat(les))
+					self.dlg.addInfo('Could not found "classCodes" in record - skipping!')
 					continue
 
 				# the teacher (strange that it is a list)
@@ -1006,7 +1021,8 @@ class Vertretungsplaner:
 				except KeyError as e:
 					# is it allowed, if the reasonType == classAbsence!
 					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
-						raise
+						self.dlg.addData(pprint.pformat(les))
+						raise KeyError('Could not found "teacherCodes" in record!')
 
 				# Room (we also consider here only the first)
 				try:
@@ -1016,7 +1032,8 @@ class Vertretungsplaner:
 				except KeyError as e:
 					# is it allowed, if the reasonType == classAbsence!
 					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
-						raise
+						self.dlg.addData(pprint.pformat(les))
+						raise KeyError('Could not found "roomCodes" in record!')
 
 				# some information?
 				if 'caption' in les['changes'].keys():
@@ -1095,6 +1112,34 @@ class Vertretungsplaner:
 					if info in self.config.get('vplan', 'rmvInfos').split(';'):
 						info = ''
 
+				lessonRef = None
+				try:
+					lessonRef = les['lessonRef']
+				except KeyError:
+					pass
+
+				# a new lesson which replaces an old one but has no reference...
+				if lessonRef is None and teacher == chgTeacher and room == chgRoom:
+					# is the guess algorith disabled => skip?
+					if not self.config.getboolean('options', 'guessOriginalLesson'):
+						continue
+
+					self.dlg.addData(pprint.pformat(les))
+					self.dlg.addWarning('Found something to guess!')
+
+					# does it already exist there?
+					for e in data['plan']:
+						if entry['date'] == entryDates[0] \
+						 and entry['hour'] == hour \
+						 and entry['course'] == courses[0]:
+							# found an entry.
+							teacher = entry['teacher']
+							room = entry['room']
+							if subject == '':
+								subject = entry['subject']
+							chgType = 0
+							break
+
 				# now generate the records
 				for entryDate in entryDates:
 					for className in courses:
@@ -1149,7 +1194,18 @@ class Vertretungsplaner:
 		except Exception as e:
 			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft.','error')
 			print('Error: %s' % (str(e),))
+			import traceback
+			traceback.print_exc()
+			self.dlg.addError(str(e))
+			self.showDlg.emit()
+			#self.dlg.show()
 			raise
+
+		# something to show?
+		if self.dlg.hasData:
+			#self.dlg.show()
+			self.showDlg.emit()
+			pass
 
 	def handlingYardDuty(self, row):
 		""" Define a new structure...:
@@ -1414,6 +1470,8 @@ class Vertretungsplaner:
 		return element.childNodes[0].wholeText
 
 	def __init__(self):
+		super().__init__()
+
 		self.lastFile = ''
 		self.run = True
 		self.config = None
@@ -1424,17 +1482,17 @@ class Vertretungsplaner:
 
 		self.loadConfig()
 		self.initTray()
+		
+		self.dlg = ErrorDialog()
+		self.showDlg.connect(self.dlg.open)
 		self.initPlan()
 
-	def __del__(self):
-		if os.path.exists(self.lastFile):
-			os.remove(self.lastFile)
-			self.lastFile = ''
+if __name__ == '__main__':
+	appQt = QApplication(sys.argv)
+	appQt.setQuitOnLastWindowClosed(False)
+	app = Vertretungsplaner()
 
-app = Vertretungsplaner()
+	if os.name in 'nt':
+		win32gui.PumpMessages()
 
-if os.name in 'nt':
-	win32gui.PumpMessages()
-elif os.name == 'posix':
-	#sys.exit(pyapp.exec_())
-	pass
+	sys.exit(appQt.exec_())
