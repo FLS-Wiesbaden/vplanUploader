@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
 #
 # @author Lukas Schreiner
 #
@@ -8,7 +8,7 @@ import sys
 from cx_Freeze import setup, Executable
 
 files = [
-	'Microsoft.VC90.CRT.manifest',
+#	'Microsoft.VC90.CRT.manifest',
 	'msvcr90.dll',
 	'msvcp90.dll',
 	'msvcm90.dll',
@@ -28,7 +28,7 @@ flsvplan = Executable(
 	"flsvplan.py",
 	base = base,
 	icon = "fls_logo.ico",
-		targetName = exeName,
+	targetName = exeName,
 	copyDependentFiles = True,
 	appendScriptToExe = True,
 	appendScriptToLibrary = True,
@@ -39,7 +39,7 @@ flsvplan_debug = Executable(
 	"flsvplan.py",
 	base = None,
 	icon = "fls_logo.ico",
-		targetName = exeDebug,
+	targetName = exeDebug,
 	copyDependentFiles = True,
 	appendScriptToExe = True,
 	appendScriptToLibrary = True,
@@ -54,12 +54,11 @@ buildOpts = {
 
 setup(
 	name = "FLS Vertretungsplaner",
-	version = "0.5",
+	version = "4.14",
 	description = "Vertretungsplaner Client",
 	author = "Friedrich-List-Schule Wiesbaden",
 	author_email = "website-team@fls-wiesbaden.de",
-	url = "http://fls-wiesbaden.de",
+	url = "https://fls-wiesbaden.de",
 	options = {'build_exe': buildOpts},
 	executables = [flsvplan, flsvplan_debug]
 )
-

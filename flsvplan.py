@@ -278,7 +278,6 @@ class Vertretungsplaner(QObject):
 			response = opener.open(request)
 			code = response.read()
 			self.showToolTip('Vertretungsplan hochgeladen','Die Datei wurde erfolgreich hochgeladen.','info')
-
 			print('Erfolgreich hochgeladen.')
 		except urllib.error.URLError as err:
 			self.createCoreDump(err)
@@ -314,13 +313,13 @@ class Vertretungsplaner(QObject):
 		if os.path.exists(path):
 			shutil.rmtree(path, ignore_errors=False, onerror=None)
 		os.makedirs(path)
-
+		
 		dump = {}
-		dump['url'] = err.geturl()
-		dump['code'] = err.getcode()
-		dump['info'] = err.info()
-		dump['hdrs'] = err.hdrs
-		dump['msg'] = err.msg
+		#dump['url'] = err.geturl()
+		#dump['code'] = err.getcode()
+		#dump['info'] = err.info()
+		#dump['hdrs'] = err.hdrs
+		#dump['msg'] = err.msg
 		dump['tb'] = traceback.format_exc()
 		dump['tbTrace'] = {}
 		excInfo = sys.exc_info()
@@ -579,10 +578,10 @@ class Vertretungsplaner(QObject):
 						start += 1
 
 			f.close()
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet und wird nun hochgeladen.','info')
 			self.send_table(data, absPath)
 		except Exception as e:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft.','error')
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden, weil die Datei fehlerhaft ist.','error')
 			print('Error: %s' % (str(e),))
 
 	def handlingDavinciSixCancelled(self, fileName):
@@ -652,7 +651,7 @@ class Vertretungsplaner(QObject):
 		pattMovedTo = re.compile(self.config.get('changekind', 'movedTo'))
 
 		# send a notification
-		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt verarbeitet.','info')
+		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden und wird jetzt verarbeitet.','info')
 
 		# ok... and now try to read the file.
 		path = self.getWatchPath()
@@ -904,10 +903,10 @@ class Vertretungsplaner(QObject):
 									data['plan'].append(r)
 
 			f.close()
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet und wird nun hochgeladen.','info')
 			self.send_table(data, absPath)
 		except Exception as e:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft.','error')
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden, weil die Datei fehlerhaft ist.','error')
 			print('Error: %s' % (str(e),))
 
 	def handlingDavinciJson(self, fileName):
@@ -916,7 +915,7 @@ class Vertretungsplaner(QObject):
 		pattMovedTo = re.compile(self.config.get('changekind', 'movedTo'))
 
 		# send a notification
-		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden! Sie wird jetzt verarbeitet.','info')
+		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden und wird jetzt verarbeitet.','info')
 		self.dlg.cleanup()
 
 		# ok... and now try to read the file.
@@ -924,8 +923,6 @@ class Vertretungsplaner(QObject):
 		sep = os.sep
 		absPath = path+sep+fileName
 
-		absentClasses = {}
-		
 		try:
 			planContent = None
 			with open(absPath, 'rb') as f:
@@ -945,11 +942,12 @@ class Vertretungsplaner(QObject):
 			data = {'stand': int(time.time()), 'plan': [], 'class': {}}
 			
 			# first load the time frames to obtain the "hours"
-			timeframes = {}
+			timeframes = {'start': {}, 'end': {}}
 			for tf in planContent['result']['timeframes']:
 				if tf['code'] == 'Standard':
 					for t in tf['timeslots']:
-						timeframes[t['startTime']] = int(t['label'])
+						timeframes['start'][t['startTime']] = {'lab': int(t['label']), 'end': t['endTime']}
+						timeframes['end'][t['endTime']] = {'lab': int(t['label']), 'start': t['startTime']}
 
 			# teams
 			teams = {}
@@ -959,10 +957,11 @@ class Vertretungsplaner(QObject):
 			# build the class dict
 			for tf in planContent['result']['classes']:
 				data['class'][tf['code']] = ''
-				for tr in tf['teamRefs']:
-					if len(tr) > 0:
-						if tr in teams.keys():
-							data['class'][tf['code']] = teams[tr]
+				if 'teamRefs' in tf:
+					for tr in tf['teamRefs']:
+						if len(tr) > 0:
+							if tr in teams.keys():
+								data['class'][tf['code']] = teams[tr]
 
 			# we are only interested in the displaySchedule of result
 			for les in planContent['result']['displaySchedule']['lessonTimes']:
@@ -973,9 +972,11 @@ class Vertretungsplaner(QObject):
 				# now take the changes block.
 				planType = 1
 				entryDates = []
-				hour = None
+				hour = []
 				startTime = None
+				startElm = None
 				endTime = None
+				endElm = None
 				teacher = None
 				subject = None
 				room = None
@@ -994,15 +995,54 @@ class Vertretungsplaner(QObject):
 				# The times are now mandatory because of the timetable.
 				startTime = '%s:%s:00' % (les['startTime'][:2], les['startTime'][2:4])
 				endTime = '%s:%s:00' % (les['endTime'][:2], les['endTime'][2:4])
-				hour = timeframes[les['startTime']]
+
+				# try to find the time gap...
+				# 1st the start hour
+				availStartTimes = sorted(timeframes['start'].keys())
+				availEndTimes = sorted(timeframes['end'].keys())
+				i = 0
+				while i < len(availStartTimes) and startElm is None:
+					if availStartTimes[i] <= les['startTime'] and availEndTimes[i] > les['startTime']:
+						startElm = timeframes['start'][availStartTimes[i]]
+					i += 1					
+
+				if startElm is None:
+					self.dlg.addData(pprint.pformat(les))
+					self.dlg.addError('Could not find a lesson for start time: %s - skipping!' % (startTime,))
+					continue
+
+				# 2nd the end hour
+				i = 0
+				while i < len(availStartTimes) and endElm is None:
+					if les['endTime'] > availStartTimes[i] and les['endTime'] <= availEndTimes[i]:
+						endElm = timeframes['end'][availEndTimes[i]]
+					i += 1	
+
+				if endElm is None:
+					self.dlg.addData(pprint.pformat(les))
+					self.dlg.addError('Could not find a lesson for ending time: %s - skipping!' % (endTime,))
+					continue
+
+				hour.append(startElm['lab'])
+				if startElm['lab'] != endElm['lab']:
+					startint = int(startElm['lab'])
+					endint = int(endElm['lab'])
+					while startint < endint:
+						startint += 1
+						hour.append(str(startint))
+
 				try:
 					subject = les['subjectCode']
 				except KeyError as e:
-					# is it allowed, if the reasonType == classAbsence!
-					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
-						self.dlg.addData(pprint.pformat(les))
-						self.dlg.addInfo('Could not found "subjectCode" in record - skipping!')
-						continue
+					# maybe its an additional lesson...?
+					if 'lessonTitle' in les['changes'].keys():
+						subject = les['changes']['lessonTitle']
+					else:
+						# is it allowed, if the reasonType == classAbsence!
+						if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
+							self.dlg.addData(pprint.pformat(les))
+							self.dlg.addWarning('Could not found "subjectCode" (subject) in record - skipping!')
+							continue
 
 				# courses
 				try:
@@ -1010,8 +1050,17 @@ class Vertretungsplaner(QObject):
 						courses.append(cl)
 				except KeyError:
 					self.dlg.addData(pprint.pformat(les))
-					self.dlg.addInfo('Could not found "classCodes" in record - skipping!')
+					self.dlg.addWarning('Could not found "classCodes" (course) in record - skipping!')
 					continue
+
+				# if we have absent classes, lets swap.
+				absentClasses = []
+				if 'absentClassCodes' in les['changes'].keys():
+					try:
+						for cl in les['changes']['absentClassCodes']:
+							absentClasses.append(cl)
+					except:
+						pass
 
 				# the teacher (strange that it is a list)
 				try:
@@ -1022,7 +1071,12 @@ class Vertretungsplaner(QObject):
 					# is it allowed, if the reasonType == classAbsence!
 					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
 						self.dlg.addData(pprint.pformat(les))
-						raise KeyError('Could not found "teacherCodes" in record!')
+						self.dlg.addWarning('Could not found "teacherCodes" (teacher) in record - skipping!')
+						continue
+
+				# Maybe there is no room, but absentRoomCodes; then we have to use this.
+				if 'roomCodes' not in les.keys() and 'absentRoomCodes' in les['changes'].keys():
+					les['roomCodes'] = les['changes']['absentRoomCodes']
 
 				# Room (we also consider here only the first)
 				try:
@@ -1033,7 +1087,7 @@ class Vertretungsplaner(QObject):
 					# is it allowed, if the reasonType == classAbsence!
 					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
 						self.dlg.addData(pprint.pformat(les))
-						raise KeyError('Could not found "roomCodes" in record!')
+						self.dlg.addWarning('Could not found "roomCodes" (room) in record - skipping!')
 
 				# some information?
 				if 'caption' in les['changes'].keys():
@@ -1063,6 +1117,8 @@ class Vertretungsplaner(QObject):
 				if 'reasonType' in les['changes'].keys() and les['changes']['reasonType'] == 'classAbsence':
 					planType = 2
 					chgType = 1
+					if len(absentClasses) > 0:
+						courses = absentClasses
 				
 				# hour cancelled?
 				if 'cancelled' in les['changes'].keys():
@@ -1120,12 +1176,14 @@ class Vertretungsplaner(QObject):
 
 				# a new lesson which replaces an old one but has no reference...
 				if lessonRef is None and teacher == chgTeacher and room == chgRoom:
-					# is the guess algorith disabled => skip?
+					# is the guess algorithm disabled => skip?
 					if not self.config.getboolean('options', 'guessOriginalLesson'):
+						self.dlg.addData(pprint.pformat(les))
+						self.dlg.addInfo('No lesson reference given and the "guess" algorithm is disabled - skipping!')
 						continue
 
 					self.dlg.addData(pprint.pformat(les))
-					self.dlg.addWarning('Found something to guess!')
+					self.dlg.addInfo('Found something to guess!')
 
 					# does it already exist there?
 					for e in data['plan']:
@@ -1143,56 +1201,57 @@ class Vertretungsplaner(QObject):
 				# now generate the records
 				for entryDate in entryDates:
 					for className in courses:
-						r = {
-							'type': planType,
-							'date': entryDate,
-							'hour': hour,
-							'starttime': startTime,
-							'endtime': endTime,
-							'teacher': teacher,
-							'subject': subject,
-							'room': room,
-							'chgType': chgType,
-							'course': className,
-							'chgteacher': chgTeacher,
-							'chgsubject': chgSubject,
-							'chgroom': chgRoom,
-							'notes': notes,
-							'info': info
-						}
+						for h in hour:
+							r = {
+								'type': planType,
+								'date': entryDate,
+								'hour': h,
+								'starttime': startTime,
+								'endtime': endTime,
+								'teacher': teacher,
+								'subject': subject,
+								'room': room,
+								'chgType': chgType,
+								'course': className,
+								'chgteacher': chgTeacher,
+								'chgsubject': chgSubject,
+								'chgroom': chgRoom,
+								'notes': notes,
+								'info': info
+							}
 
-						# in case of cancelled class: remove all data!
-						if planType == 2:
-							r['teacher'] = None
-							r['subject'] = None
-							r['room'] = None
-							r['chgteacher'] = None
-							r['chgsubject'] = None
-							r['chgroom'] = None
-							r['notes'] = ''
-							r['hour'] = 0
+							# in case of cancelled class: remove all data!
+							if planType == 2:
+								r['teacher'] = None
+								r['subject'] = None
+								r['room'] = None
+								r['chgteacher'] = None
+								r['chgsubject'] = None
+								r['chgroom'] = None
+								r['notes'] = ''
+								r['hour'] = 0
 
-						exist = False
-						# does it already exist there?
-						for entry in data['plan']:
-							if entry['date'] == r['date'] \
-							 and entry['hour'] == r['hour'] \
-							 and entry['course'] == r['course'] \
-							 and entry['teacher'] == r['teacher'] \
-							 and entry['subject'] == r['subject'] \
-							 and entry['room'] == r['room']:
-								#print('Tried to create a duplicate entry!')
-								exist = True
-								break
+							exist = False
+							# does it already exist there?
+							for entry in data['plan']:
+								if entry['date'] == r['date'] \
+							 	 and entry['hour'] == r['hour'] \
+							 	 and entry['course'] == r['course'] \
+							 	 and entry['teacher'] == r['teacher'] \
+							 	 and entry['subject'] == r['subject'] \
+							 	 and entry['room'] == r['room']:
+									#print('Tried to create a duplicate entry!')
+									exist = True
+									break
 
-						if not exist:
-							data['plan'].append(r)
+							if not exist:
+								data['plan'].append(r)
 
 			f.close()
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet und wird nun hochgeladen.','info')
 			self.send_table(data, absPath)
 		except Exception as e:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft.','error')
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden, weil die Datei fehlerhaft ist.','error')
 			print('Error: %s' % (str(e),))
 			import traceback
 			traceback.print_exc()
@@ -1326,21 +1385,21 @@ class Vertretungsplaner(QObject):
 			else:
 				content = content.decode('iso-8859-1')
 		except:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft encodiert.','error')
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden, weil die Datei fehlerhaft  encodiert ist.','error')
 			return None
 
 		if content is None:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei enthält keine Daten.','error')
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden, weil die Datei keine Daten enthält.','error')
 			return None
 
 		# now decode.
 		try:
 			jsonDta = json.loads(content)
 		except:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden. Datei ist fehlerhaft.','error')
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden, weil die Datei fehlerhaft ist.','error')
 			return None
 		else:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet. Er wird nun hochgeladen.','info')
+			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet und wird nun hochgeladen.','info')
 			self.send_table(jsonDta, absPath)
 
 	def parse_page(self, page):
