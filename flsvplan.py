@@ -1075,7 +1075,8 @@ class Vertretungsplaner(QObject):
 						continue
 
 				# Maybe there is no room, but absentRoomCodes; then we have to use this.
-				if 'roomCodes' not in les.keys() and 'absentRoomCodes' in les['changes'].keys():
+				# Changed on 11.11.: absentRoomCodes has the higher priority than the normal room codes.
+				if 'absentRoomCodes' in les['changes'].keys() and len(les['changes']['absentRoomCodes']) > 0:
 					les['roomCodes'] = les['changes']['absentRoomCodes']
 
 				# Room (we also consider here only the first)
@@ -1106,7 +1107,7 @@ class Vertretungsplaner(QObject):
 					for t in les['changes']['newTeacherCodes']:
 						chgTeacher = t
 						break
-				
+
 				# new room?
 				if 'newRoomCodes' in les['changes'].keys():
 					for t in les['changes']['newRoomCodes']:
