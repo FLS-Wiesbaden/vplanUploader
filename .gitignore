@@ -2,35 +2,14 @@
 # /
 /dist
 /build
-/*.pyc
-/*.py~
-/*.py.swp
+*.pyc
+*.py~
+*.py.swp
 /tmp
-/__pycache__
+__pycache__
 /*.old
 /coredump
 /.sublime
 *.ini
-
-# /bs4/
-/bs4/*.pyc
-/bs4/__pycache__
-
-# /bs4/builder/
-/bs4/builder/*.pyc
-/bs4/builder/__pycache__
-
-# /pdfminer/
-/pdfminer/*.pyc
-/pdfminer/__pycache__
-
-# /pdfminer/cmap/
-/pdfminer/cmap/*.pyc
-/pdfminer/cmap/__pycache__
-
-# /ply/
-/ply/*.pyc
-/ply/__pycache__
-
-# /pydump/
-/pydump/__pycache__
+*.dll
+/localDemo

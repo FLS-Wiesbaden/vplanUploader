@@ -14,11 +14,18 @@ class BasicParser(QObject):
 	planParserPrepared = pyqtSignal()
 	planParsed = pyqtSignal(bool)
 
+	PLAN_FILLIN = 1
+	PLAN_CANCELED = 2
+	PLAN_YARDDUTY = 4
+	PLAN_OUTTEACHER = 8
+	PLAN_ADDITIONAL = 16
+
 	def __init__(self, config, parsingFile):
 		super().__init__()
 		self._config = config
 		self._parsingFile = parsingFile
 		self._fileContent = None
+		self._planType = 0
 
 	def loadFile(self, encoding=None):
 		try:

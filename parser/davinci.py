@@ -159,6 +159,11 @@ class DavinciJsonParser(BasicParser):
 		self._timeFramesDuty = Timetable()
 		self._teams = {}
 
+		# With the json interface of DaVinci 6, we support mostly all features.
+		# So here we set the default flags.
+		self._planType = self._planType | BasicParser.PLAN_CANCELED | BasicParser.PLAN_FILLIN
+		self._planType = self._planType | BasicParser.PLAN_OUTTEACHER | BasicParser.PLAN_YARDDUTY
+
 	def preParse(self):
 		self._fileContent = json.loads(self._fileContent)
 		self._stand = int(time.time())
@@ -232,6 +237,7 @@ class DavinciJsonParser(BasicParser):
 					les['startDate'][:4]
 				)
 
+				self._planType = self._planType | BasicParser.PLAN_CANCELED
 				newEntry = ChangeEntry([entryDate], 2, None)
 				newEntry._hours = [0]
 				newEntry._startTime = '00:00:00'
@@ -265,7 +271,8 @@ class DavinciJsonParser(BasicParser):
 					les['startDate'][:4]
 				)
 
-				newEntry = ChangeEntry([entryDate], 5, None)
+				self._planType = self._planType | BasicParser.PLAN_OUTTEACHER
+				newEntry = ChangeEntry([entryDate], 8, None)
 				newEntry._hours = [0]
 				newEntry._startTime = '00:00:00'
 				newEntry._endTime = '23:59:59'
@@ -293,6 +300,7 @@ class DavinciJsonParser(BasicParser):
 				for dt in les['dates']:
 					entryDates.append('%s.%s.%s' % (dt[6:], dt[4:6], dt[:4]))
 
+				self._planType = self._planType | BasicParser.PLAN_FILLIN
 				newEntry = ChangeEntry(entryDates, 1, None)
 				newEntry._startTime = '%s:%s:00' % (les['startTime'][:2], les['startTime'][2:4])
 				newEntry._endTime = '%s:%s:00' % (les['endTime'][:2], les['endTime'][2:4])
@@ -490,6 +498,7 @@ class DavinciJsonParser(BasicParser):
 				for dt in les['dates']:
 					entryDates.append('%s.%s.%s' % (dt[6:], dt[4:6], dt[:4]))
 
+				self._planType = self._planType | BasicParser.PLAN_YARDDUTY
 				newEntry = ChangeEntry(entryDates, 4, None)
 				newEntry._startTime = '%s:%s:00' % (les['startTime'][:2], les['startTime'][2:4])
 				newEntry._endTime = '%s:%s:00' % (les['endTime'][:2], les['endTime'][2:4])
@@ -538,5 +547,6 @@ class DavinciJsonParser(BasicParser):
 		return {
 			'stand': self._stand,
 			'plan': planEntries,
+			'ptype': self._planType,
 			'class': self._classList.getList()
 		}
