@@ -18,6 +18,7 @@ backupFolder: False
 createCoreDump: True
 debugOnline: False
 guessOriginalLesson: False
+debugLogs: False
 
 [proxy]
 enable: False

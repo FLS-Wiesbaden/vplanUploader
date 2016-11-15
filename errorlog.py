@@ -9,10 +9,23 @@ import datetime
 
 class ErrorDialog(QDialog):
 
-	def __init__(self, parent=None):
+	def __init__(self, displayDebug=False, parent=None):
 		super().__init__(parent)
 		self.hasData = False
+		self.displayDebug = displayDebug
 		self.setupUi()
+
+	@pyqtSlot(str)
+	def addDebug(self, msg, data=None):
+		if self.displayDebug:
+			if data is not None:
+				msgfmt = '<p style="color: #0035A8"><pre>%s</pre></p>'
+				self.logContent.appendHtml(msgfmt % (msg,))
+
+			self.hasData = True
+			msgfmt = '<p style="color: #77B1FC">[Debug] %s: %s</p>'
+			dtm = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+			self.logContent.appendHtml(msgfmt % (dtm, msg))
 
 	@pyqtSlot(str)
 	def addInfo(self, msg):
@@ -41,6 +54,7 @@ class ErrorDialog(QDialog):
 		msgfmt = '<p style="color: #0035A8"><pre>%s</pre></p>'
 		self.logContent.appendHtml(msgfmt % (msg,))
 
+	@pyqtSlot()
 	def cleanup(self):
 		self.logContent.clear()
 
