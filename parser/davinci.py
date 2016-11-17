@@ -165,7 +165,9 @@ class DavinciJsonParser(BasicParser):
 		self._planType = self._planType | BasicParser.PLAN_OUTTEACHER | BasicParser.PLAN_YARDDUTY
 
 	def preParse(self):
-		self._fileContent = json.loads(self._fileContent)
+		if self._encoding is None:
+			self._encoding = 'utf-8'
+		self._fileContent = json.loads(self._fileContent, encoding=self._encoding)
 		self._stand = int(time.time())
 		self.planParserPrepared.emit()
 
@@ -504,22 +506,24 @@ class DavinciJsonParser(BasicParser):
 				newEntry._endTime = '%s:%s:00' % (les['endTime'][:2], les['endTime'][2:4])
 				newEntry._hours = self._timeFramesDuty.getMatchingEntries(les['startTime'], les['endTime'])
 
-				if 'supervisionTitle' in les.keys():
-					newEntry._info = les['supervisionTitle']
+				# supervisionTitle disabled, because it is modified depending on the change:
+				# e.g. Atrium ==> +SCLO (Atrium)
+				#if 'supervisionTitle' in les.keys():
+				#	newEntry._info = les['supervisionTitle']
 
 				if 'areaCode' in les.keys():
-					newEntry._room = les['areaCode']
+					newEntry._info = les['areaCode']
 
 				oldTeacher = None
 				# the teacher (strange that it is a list)
 				try:
-					for t in les['absentTeacherCodes']:
+					for t in les['changes']['absentTeacherCodes']:
 						oldTeacher = t
 						break
 				except KeyError as e:
 					# is it allowed, if the reasonType == classAbsence!
 					self._errorDialog.addData(pprint.pformat(les))
-					self._errorDialog.addWarning('Cannot parse yard chnage due missing old teacher - skipping!')
+					self._errorDialog.addWarning('Cannot parse yard change due missing old teacher - skipping!')
 					continue
 
 				newTeacher = None
@@ -531,7 +535,7 @@ class DavinciJsonParser(BasicParser):
 				except KeyError as e:
 					# is it allowed, if the reasonType == classAbsence!
 					self._errorDialog.addData(pprint.pformat(les))
-					self._errorDialog.addWarning('Cannot parse yard chnage due missing new teacher - skipping!')
+					self._errorDialog.addWarning('Cannot parse yard change due missing new teacher - skipping!')
 					continue
 
 				newEntry._teacher = oldTeacher

@@ -26,6 +26,7 @@ class BasicParser(QObject):
 		self._parsingFile = parsingFile
 		self._fileContent = None
 		self._planType = 0
+		self._encoding = None
 
 	def loadFile(self, encoding=None):
 		try:
@@ -46,17 +47,21 @@ class BasicParser(QObject):
 		if encoding is None:
 			try:
 				self._fileContent = self._fileContent.decode('utf-8')
+				self._encoding = 'utf-8'
 			except:
 				try:
 					self._fileContent = self._fileContent.decode('utf-8-sig')
+					self._encoding = 'utf-8-sig'
 				except:
 					try:
 						self._fileContent = self._fileContent.decode('iso-8859-1')
+						self._encoding = 'iso-8859-1'
 					except:
 						decoded = False
 		else:
 			try:
 				self._fileContent = self._fileContent.decode(encoding)
+				self._encoding = encoding
 			except:
 				decoded = False
 
