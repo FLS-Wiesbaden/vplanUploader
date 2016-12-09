@@ -9,7 +9,7 @@ import time
 import json
 import pprint
 import re
-from parser.basic import BasicParser, ChangeEntry
+from planparser.basic import BasicParser, ChangeEntry
 
 class SchoolClassList(object):
 
@@ -167,7 +167,14 @@ class DavinciJsonParser(BasicParser):
 	def preParse(self):
 		if self._encoding is None:
 			self._encoding = 'utf-8'
-		self._fileContent = json.loads(self._fileContent, encoding=self._encoding)
+		try:
+			self._fileContent = json.loads(self._fileContent.decode(self._encoding))
+		except ValueError:
+			if self._encoding == 'utf-8':
+				self._encoding = 'utf-8-sig'
+				self._fileContent = json.loads(self._fileContent.decode(self._encoding))
+			else:
+				raise
 		self._stand = int(time.time())
 		self.planParserPrepared.emit()
 

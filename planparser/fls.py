@@ -7,7 +7,7 @@
 # @author Lukas Schreiner
 import time
 import csv
-from parser.basic import BasicParser, ChangeEntry
+from planparser.basic import BasicParser, ChangeEntry
 
 class FlsCsvParser(BasicParser):
 

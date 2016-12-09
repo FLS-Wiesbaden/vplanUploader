@@ -12,8 +12,8 @@ from datetime import datetime
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
 from errorlog import ErrorDialog
-from parser.davinci import DavinciJsonParser
-from parser.fls import FlsCsvParser
+from planparser.fls import FlsCsvParser
+from planparser.davinci import DavinciJsonParser
 import pickle
 import traceback
 import inspect

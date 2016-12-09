@@ -42,35 +42,6 @@ class BasicParser(QObject):
 			self.planParsed(False)
 			return
 
-		# now we have to guess the encoding.
-		decoded = True
-		if encoding is None:
-			try:
-				self._fileContent = self._fileContent.decode('utf-8')
-				self._encoding = 'utf-8'
-			except:
-				try:
-					self._fileContent = self._fileContent.decode('utf-8-sig')
-					self._encoding = 'utf-8-sig'
-				except:
-					try:
-						self._fileContent = self._fileContent.decode('iso-8859-1')
-						self._encoding = 'iso-8859-1'
-					except:
-						decoded = False
-		else:
-			try:
-				self._fileContent = self._fileContent.decode(encoding)
-				self._encoding = encoding
-			except:
-				decoded = False
-
-		if not decoded:
-			if hasattr(self, _errorDialog):
-				self._errorDialog.addError('Could not decode the loaded plan with path %s' % (self._parsingFile,))
-			self.planParsed(False)
-			return
-
 		#self.planFileLoaded.emit()
 
 	def preParse(self):
