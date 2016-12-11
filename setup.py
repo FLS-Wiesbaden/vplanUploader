@@ -13,8 +13,22 @@ files = [
 	'msvcp90.dll',
 	'msvcm90.dll',
 	'config.ini',
-	'fls_logo.ico'
-	]
+]
+
+# DEFAULT VALUES
+setupName = 'FLS Vertretungsplaner'
+setupVersion = "4.17"
+setupDescription = "Vertretungsplaner Client"
+setupUrl = 'https://www.fls-wiesbaden.de'
+setupIco = 'fls_logo.ico'
+if sys.argv[-1] in ['gks', 'fls']:
+	variant = sys.argv.pop()
+	setupIco = '%s.ico' % (variant,)
+	files.append(setupIco)
+	if variant == 'gks':
+		setupUrl = 'http://vplan.gks-obertshausen.de'
+		setupName = 'GKS Vertretungsplaner'
+files.append((setupIco, 'logo.ico'))
 
 base = None
 exeName = 'flsvplan'
@@ -53,12 +67,12 @@ buildOpts = {
 	}
 
 setup(
-	name = "FLS Vertretungsplaner",
-	version = "4.16",
-	description = "Vertretungsplaner Client",
+	name = setupName,
+	version = setupVersion,
+	description = setupDescription,
 	author = "Friedrich-List-Schule Wiesbaden",
 	author_email = "website-team@fls-wiesbaden.de",
-	url = "https://fls-wiesbaden.de",
+	url = setupUrl,
 	options = {'build_exe': buildOpts},
 	executables = [flsvplan, flsvplan_debug]
 )

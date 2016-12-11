@@ -21,8 +21,13 @@ class FlsCsvParser(BasicParser):
 		self._planType = self._planType | BasicParser.PLAN_ADDITIONAL
 
 	def loadFile(self):
+		if self._config.has_option('parser-fls', 'encoding'):
+			self._encoding = self._config.get('parser-fls', 'encoding')
+		elif self._encoding is None:
+			self._encoding = 'utf-8'
+
 		self._fileContent = []
-		f = open(self._parsingFile, 'r', encoding='utf-8' if self._config.getboolean('default', 'utf8') else 'iso-8859-1')
+		f = open(self._parsingFile, 'r', encoding=self._encoding)
 		reader = csv.reader(f, delimiter=';')
 		for row in reader:
 			self._fileContent.append(row)

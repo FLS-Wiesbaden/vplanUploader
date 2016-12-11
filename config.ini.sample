@@ -3,12 +3,17 @@ url: https://xxx.xy/geco/admvplan
 path: tmp
 api: xxxxxxx
 intervall: 5
-utf8: True
 
 [siteauth]
 enable: False
 username: flsadmin
 password: na
+
+[parser-davinci]
+encoding = utf-8
+
+[parser-fls]
+encoding = iso-8859-1
 
 [options]
 delUpFile: True
@@ -57,24 +62,3 @@ classFree = entfällt
 moved = "verschoben"
 movedFrom = ^Von ([0-9]{1,2}\.[0-9]{1,2}\.) ([a-zA-Z]{2}) ([0-9]{1,2})(-([0-9]{1,2}))? verschoben$
 movedTo = ^Auf ([0-9]{1,2}\.[0-9]{1,2}\.) ([a-zA-Z]{2}) ([0-9]{1,2})(-([0-9]{1,2}))? verschoben$
-
-[fields]
-date: 0
-day: 1
-pos: 2
-time: 3
-type: 5
-kind: 6
-block: 7
-class: 9
-standin: 10
-teacher: 11
-room: 12
-subject: 13
-info: 16
-note: 17
-comment: 18
-status: 22
-modtime: 23
-moduser: 24
-posEnd: 2

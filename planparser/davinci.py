@@ -9,6 +9,7 @@ import time
 import json
 import pprint
 import re
+from codecs import BOM_UTF8
 from planparser.basic import BasicParser, ChangeEntry
 
 class SchoolClassList(object):
@@ -165,16 +166,20 @@ class DavinciJsonParser(BasicParser):
 		self._planType = self._planType | BasicParser.PLAN_OUTTEACHER | BasicParser.PLAN_YARDDUTY
 
 	def preParse(self):
-		if self._encoding is None:
+		if self._config.has_option('parser-davinci', 'encoding'):
+			self._encoding = self._config.get('parser-davinci', 'encoding')
+		elif self._encoding is None:
 			self._encoding = 'utf-8'
+
+		# check for UTF-8 BOM
+		if self._encoding.lower() == 'utf-8' and self._fileContent.startswith(BOM_UTF8):
+			self._encoding = 'utf-8-sig'
+
 		try:
 			self._fileContent = json.loads(self._fileContent.decode(self._encoding))
 		except ValueError:
-			if self._encoding == 'utf-8':
-				self._encoding = 'utf-8-sig'
-				self._fileContent = json.loads(self._fileContent.decode(self._encoding))
-			else:
-				raise
+			raise
+
 		self._stand = int(time.time())
 		self.planParserPrepared.emit()
 

@@ -77,13 +77,6 @@ class Vertretungsplaner(QObject):
 		else:
 			return False
 
-	def filesAreUTF8(self):
-		if self.config.get('default', 'utf8') == 'True' or \
-				self.config.get('default', 'utf8') is True:
-			return True
-		else:
-			return False
-
 	def getRun(self):
 		return self.run
 
@@ -142,9 +135,6 @@ class Vertretungsplaner(QObject):
 								self.handlingDavinciJson(f)
 							except:
 								pass
-				elif f.lower().endswith('.json') and not execFound:
-					execFound = True
-					Thread(target=self.handlingJson, args=(f,)).start()
 				elif not execFound:
 					print('"%s" will be ignored.' % (f,))
 
@@ -168,22 +158,7 @@ class Vertretungsplaner(QObject):
 		# Now start Looping
 		self.search = Thread(target=SearchPlaner, args=(self,)).start()
 
-	def convert(self, table):
-		for i,v in enumerate(table):
-			for k,x in enumerate(v):
-				if self.filesAreUTF8() and type(x).__name__ != 'str':
-					table[i][k] = x.decode("utf8")
-				elif type(x).__name__ != 'str':
-					print(type(x).__name__)
-					table[i][k] = x.decode("iso-8859-1")
-
-		return table
-
-	def send_table(self, table, absFile, planType = 'all', convert = True):
-		# jau.. send it to the top url!
-		if convert:
-			table = self.convert(table)
-
+	def send_table(self, table, absFile, planType = 'all'):
 		data = json.dumps(table).encode('utf8')
 		data = base64.encodestring(data).decode('utf8').replace('\n', '')
 		values = {
@@ -266,13 +241,9 @@ class Vertretungsplaner(QObject):
 		os.makedirs(path)
 		
 		dump = {}
-		#dump['url'] = err.geturl()
-		#dump['code'] = err.getcode()
-		#dump['info'] = err.info()
-		#dump['hdrs'] = err.hdrs
-		#dump['msg'] = err.msg
 		dump['tb'] = traceback.format_exc()
 		dump['tbTrace'] = {}
+		dump['err'] = self.dumpObject(err)
 		excInfo = sys.exc_info()
 
 		i = 0
@@ -281,9 +252,20 @@ class Vertretungsplaner(QObject):
 			i += 1
 
 		with open(filename, 'wb') as f:
-			pickle.dump(dump, f)
+			pickle.dump(dump, f, protocol=pickle.HIGHEST_PROTOCOL)
 			
 		print('Coredump created in %s' % (filename,))
+
+	def dumpObject(self, obj):
+		struc = {}
+		for k, v in vars(obj).items():
+			if not k.startswith('_') and k != 'fp':
+				try:
+					struc[k] = self.dumpObject(v)
+				except:
+					struc[k] = v
+
+		return struc
 
 	def moveAndDeleteVPlanFile(self, absFile):
 		# file => Actual file (move to lastFile)
@@ -373,37 +355,6 @@ class Vertretungsplaner(QObject):
 		if self.dlg.hasData:
 			self.showDlg.emit()
 
-	def handlingJson(self, fileName):
-		path = self.getWatchPath()
-		sep = os.sep
-		absPath = path+sep+fileName
-
-		content = None
-		with open(absPath, 'rb') as f:
-			content = f.read()
-		try:
-			if self.filesAreUTF8():
-				content = content.decode('utf-8')
-			else:
-				content = content.decode('iso-8859-1')
-		except:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden, weil die Datei fehlerhaft  encodiert ist.','error')
-			return None
-
-		if content is None:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden, weil die Datei keine Daten enthält.','error')
-			return None
-
-		# now decode.
-		try:
-			jsonDta = json.loads(content)
-		except:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden, weil die Datei fehlerhaft ist.','error')
-			return None
-		else:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet und wird nun hochgeladen.','info')
-			self.send_table(jsonDta, absPath)
-
 	@pyqtSlot()
 	def planFileLoaded(self):
 		pass
@@ -430,7 +381,7 @@ class Vertretungsplaner(QObject):
 		)
 		if os.name in "nt":
 			from taskbardemo import DemoTaskbar, Taskbar	
-			self.tray = DemoTaskbar(self,'fls_logo.ico', 'FLS Vertretungsplaner', menu)
+			self.tray = DemoTaskbar(self,'logo.ico', 'FLS Vertretungsplaner', menu)
 		elif os.name == 'posix':
 			#from linuxtaskbar import Taskbar
 			#w = QtGui.QWidget()
