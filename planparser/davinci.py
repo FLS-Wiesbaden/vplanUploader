@@ -233,6 +233,9 @@ class DavinciJsonParser(BasicParser):
 
 	def parseAbsentClasses(self):
 		# first find the absent classes
+		if 'classAbsences' not in self._fileContent.keys():
+                    return
+
 		for les in self._fileContent['result']['classAbsences']:
 			if les['startDate'] != les['endDate']:
 				self._errorDialog.addDebug(
@@ -267,6 +270,9 @@ class DavinciJsonParser(BasicParser):
 
 	def parseAbsentTeachers(self):
 		# find the absent teachers.
+		if 'teacherAbsences' not in self._fileContent.keys():
+                    return
+
 		for les in self._fileContent['result']['teacherAbsences']:
 			if les['startDate'] != les['endDate']:
 				self._errorDialog.addDebug(

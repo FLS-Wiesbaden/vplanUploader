@@ -176,8 +176,9 @@ class Vertretungsplaner(QObject):
 			print('Proxy is activated')
 			httpproxy = "http://"+self.config.get("proxy", "phost")+":"+self.config.get("proxy", "pport")
 			proxies = {
-					"http" : httpproxy
-					}
+				"http" : httpproxy,
+				"https": httpproxy
+			}
 
 			opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
 			urllib.request.install_opener(opener)

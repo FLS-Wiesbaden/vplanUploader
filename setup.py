@@ -17,7 +17,7 @@ files = [
 
 # DEFAULT VALUES
 setupName = 'FLS Vertretungsplaner'
-setupVersion = "4.17"
+setupVersion = "4.18"
 setupDescription = "Vertretungsplaner Client"
 setupUrl = 'https://www.fls-wiesbaden.de'
 setupIco = 'fls_logo.ico'
