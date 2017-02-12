@@ -9,8 +9,9 @@ import time, os, os.path, json, codecs, base64, configparser, shutil, csv
 from searchplaner import SearchPlaner
 from threading import Thread
 from datetime import datetime
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
+from PyQt5.QtGui import QIcon
 from errorlog import ErrorDialog
 from planparser.fls import FlsCsvParser
 from planparser.davinci import DavinciJsonParser
@@ -20,12 +21,7 @@ import inspect
 import pprint
 
 app = None
-if os.name in 'nt':
-	import win32gui
-elif os.name == 'posix':
-	#from PyQt5 import QtGui
-	#pyapp = QtGui.QApplication(sys.argv)
-	pass
+appQt = None
 
 class WatchFile:
 
@@ -44,6 +40,7 @@ class WatchFile:
 class Vertretungsplaner(QObject):
 	showDlg = pyqtSignal()
 	hideDlg = pyqtSignal()
+	message = pyqtSignal(str, str, int, int)
 	cleanupDlg = pyqtSignal()
 
 	def getWatchPath(self):
@@ -84,13 +81,11 @@ class Vertretungsplaner(QObject):
 		self.run = run
 
 	def showToolTip(self, title, msg, msgtype):
-		if self.tray is not None:
-			self.tray.showInfo(title, msg)
-		else:
-			# ok.. than let us print on console
-			print('[%s] %s: %s' % (msgtype, title, msg))
-		return True
+		trayIcon = QSystemTrayIcon.Critical if msgtype is 'error' else QSystemTrayIcon.Information
+		timeout = 10000
+		self.message.emit(title, msg, trayIcon, timeout)
 
+	@pyqtSlot()
 	def getNewFiles(self):
 		print('Starte suche...')
 
@@ -370,28 +365,23 @@ class Vertretungsplaner(QObject):
 		self.config = configparser.ConfigParser()
 		self.config.read(["config.ini"], encoding='utf-8')
 
+	@pyqtSlot()
 	def bye(self):
-		print("Auf Wiedersehen!")
-		self.tray.sayGoodbye()
-		os._exit(0)
+		global appQt
+		self.run = False
+		sys.exit(0)
 
 	def initTray(self):
-		menu = (
-			('Planer hochladen', None, self.getNewFiles),
-			('Beenden', None, self.bye),
-		)
-		if os.name in "nt":
-			from taskbardemo import DemoTaskbar, Taskbar	
-			self.tray = DemoTaskbar(self,'logo.ico', 'FLS Vertretungsplaner', menu)
-		elif os.name == 'posix':
-			#from linuxtaskbar import Taskbar
-			#w = QtGui.QWidget()
-			#self.tray = Taskbar(w, QtGui.QIcon('fls_logo.ico'), 'FLS Vertretungsplaner', menu)
-			#self.tray.show()
-			pass
+		self.tray = QSystemTrayIcon(QIcon('logo.ico'), self)
+		menu = QMenu('FLS Vertretungsplaner')
+		menu.addAction('Planer hochladen', self.getNewFiles)
+		menu.addAction('Beenden', self.bye)
+		self.tray.setContextMenu(menu)
+		self.message.connect(self.tray.showMessage)
 
-		if self.tray is not None:
-			self.tray.showInfo('Vertretungsplaner startet...', 'Bei Problemen wenden Sie sich bitte an das Website-Team der Friedrich-List-Schule Wiesbaden.')
+		self.tray.show()
+
+		self.showToolTip('Vertretungsplaner startet...', 'Bei Problemen wenden Sie sich bitte an das Website-Team der Friedrich-List-Schule Wiesbaden.', 'info')
 
 	def getXmlRaw(self, element):
 		return element.childNodes[0].wholeText
@@ -428,8 +418,5 @@ if __name__ == '__main__':
 	appQt = QApplication(sys.argv)
 	appQt.setQuitOnLastWindowClosed(False)
 	app = Vertretungsplaner()
-
-	if os.name in 'nt':
-		win32gui.PumpMessages()
 
 	sys.exit(appQt.exec_())

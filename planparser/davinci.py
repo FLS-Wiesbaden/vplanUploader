@@ -271,7 +271,7 @@ class DavinciJsonParser(BasicParser):
 	def parseAbsentTeachers(self):
 		# find the absent teachers.
 		if 'teacherAbsences' not in self._fileContent.keys():
-                    return
+			return
 
 		for les in self._fileContent['result']['teacherAbsences']:
 			if les['startDate'] != les['endDate']:
@@ -340,6 +340,18 @@ class DavinciJsonParser(BasicParser):
 				if 'reasonType' in les['changes'].keys() and les['changes']['reasonType'] == 'classAbsence' \
 					and les['startTime'] != '0000':
 					les['changes']['reasonType'] = 'classFree'
+					# for FLS, we also need to switch the caption.
+					if les['changes']['caption'] == self._config.get('changekind', 'classAbsent'):
+						les['changes']['caption'] = self._config.get('vplan', 'txtReplaceFree')
+
+				# in case, there is a special note, we need to inform about the classAbsence reason!
+				if 'reasonType' in les['changes'].keys() and les['changes']['reasonType'] in ['classAbsence', 'classFree'] \
+					and 'information' not in les['changes'].keys() and 'reasonCode' in les['changes'].keys():
+					if 'classAbsenceReasons' in self._fileContent['result'].keys():
+						for reason in self._fileContent['result']['classAbsenceReasons']:
+							if reason['code'] == les['changes']['reasonCode'] and 'description' in reason.keys():
+								les['changes']['information'] = reason['description']
+								break
 
 				# subject of course
 				try:
@@ -368,11 +380,17 @@ class DavinciJsonParser(BasicParser):
 						teacher = t
 						break
 				except KeyError as e:
-					# is it allowed, if the reasonType == classAbsence!
-					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
-						self._errorDialog.addData(pprint.pformat(les))
-						self._errorDialog.addWarning('Could not found "teacherCodes" (teacher) in record - skipping!')
-						continue
+					# OK.. lets extract by "absentTeacherCodes" if possible.
+					try:
+						for t in les['changes']['absentTeacherCodes']:
+							teacher = t
+							break
+					except KeyError as e:
+						# is it allowed, if the reasonType == classAbsence!
+						if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
+							self._errorDialog.addData(pprint.pformat(les))
+							self._errorDialog.addWarning('Could not found "teacherCodes" (teacher) in record - skipping!')
+							continue
 				newEntry._teacher = teacher
 				
 				# new teacher?
