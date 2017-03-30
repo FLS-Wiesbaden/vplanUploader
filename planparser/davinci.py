@@ -9,6 +9,7 @@ import time
 import json
 import pprint
 import re
+import hashlib
 from codecs import BOM_UTF8
 from planparser.basic import BasicParser, ChangeEntry
 
@@ -87,6 +88,9 @@ class TeacherList(object):
 	def getList(self):
 		return [cl.getAbbreviation() for cl in self._list]
 
+	def serialize(self):
+		return [cl.serialize() for cl in self._list]
+
 class Teacher(object):
 
 	def __init__(self, tId, abbrev):
@@ -108,6 +112,69 @@ class Teacher(object):
 	def __str__(self):
 		return self._abbreviation
 
+	def serialize(self):
+		return {
+			'firstname': self._firstName,
+			'lastname': self._lastName,
+			'abbreviation': self._abbreviation
+		}
+
+class SubjectList(object):
+
+	def __init__(self):
+		self._list = []
+
+	def append(self, cl):
+		self._list.append(cl)
+
+	def remove(self, cl):
+		self._list.remove(cl)
+
+	def findById(self, cId):
+		for f in self._list:
+			if f.getId() == cId:
+				return f
+
+		return None
+
+	def findByAbbreviation(self, abbrev):
+		for f in self._list:
+			if f.getAbbreviation() == abbrev:
+				return f
+
+		return None
+
+	def getList(self):
+		return [cl.getAbbreviation() for cl in self._list]
+
+	def serialize(self):
+		return [cl.serialize() for cl in self._list]
+
+class Subject(object):
+
+	def __init__(self, tId, abbrev):
+		self._id = tId
+		self._abbreviation = abbrev
+		self._name = ''
+
+	def setName(self, name):
+		self._name = name
+
+	def getAbbreviation(self):
+		return self._abbreviation
+
+	def getId(self):
+		return self._id
+
+	def __str__(self):
+		return self._abbreviation
+
+	def serialize(self):
+		return {
+			'name': self._name,
+			'abbreviation': self._abbreviation
+		}
+
 class Timetable(object):
 
 	def __init__(self):
@@ -128,6 +195,9 @@ class Timetable(object):
 
 		return timeObjects
 
+	def serialize(self):
+		return [cl.serialize() for cl in self._list]
+
 class TimeEntry(object):
 
 	def __init__(self, label, start, end):
@@ -142,6 +212,13 @@ class TimeEntry(object):
 	def __repr__(self):
 		return '<TimeEntry #%i: %s to %s>' % (self._label, self._startTime, self._endTime)
 
+	def serialize(self):
+		return {
+			'label': int(self._label),
+			'start': self._startTime,
+			'end': self._endTime
+		}
+
 class DavinciJsonParser(BasicParser):
 
 	def __init__(self, config, errorDialog, parsingFile):
@@ -153,6 +230,7 @@ class DavinciJsonParser(BasicParser):
 		self._supervision = []
 		self._classList = SchoolClassList()
 		self._teacherList = TeacherList()
+		self._subjectList = SubjectList()
 		self._stand = None
 
 		# Master data.
@@ -221,6 +299,14 @@ class DavinciJsonParser(BasicParser):
 				teacher.setName(tf['firstName'], tf['lastName'])
 			self._teacherList.append(teacher)
 
+
+		# build the subject list
+		for tf in self._fileContent['result']['subjects']:
+			subject = Subject(tf['id'], tf['code'])
+			if 'description' in tf.keys():
+				subject.setName(tf['description'])
+			self._subjectList.append(subject)
+
 		# time frames
 		for tf in self._fileContent['result']['timeframes']:
 			if tf['code'] in ['Standard', 'Aufsichten']:
@@ -234,7 +320,7 @@ class DavinciJsonParser(BasicParser):
 	def parseAbsentClasses(self):
 		# first find the absent classes
 		if 'classAbsences' not in self._fileContent.keys():
-                    return
+			return
 
 		for les in self._fileContent['result']['classAbsences']:
 			if les['startDate'] != les['endDate']:
@@ -341,7 +427,8 @@ class DavinciJsonParser(BasicParser):
 					and les['startTime'] != '0000':
 					les['changes']['reasonType'] = 'classFree'
 					# for FLS, we also need to switch the caption.
-					if les['changes']['caption'] == self._config.get('changekind', 'classAbsent'):
+					if 'caption' in les['changes'].keys() and \
+						les['changes']['caption'] == self._config.get('changekind', 'classAbsent'):
 						les['changes']['caption'] = self._config.get('vplan', 'txtReplaceFree')
 
 				# in case, there is a special note, we need to inform about the classAbsence reason!
@@ -588,5 +675,17 @@ class DavinciJsonParser(BasicParser):
 			'stand': self._stand,
 			'plan': planEntries,
 			'ptype': self._planType,
-			'class': self._classList.getList()
+			'class': self._classList.getList(),
+			'teacher': self._teacherList.serialize(),
+			'subjects': self._subjectList.serialize(),
+			'timeframes': {
+				'pupil': self._timeFramesPupil.serialize(),
+				'duty': self._timeFramesDuty.serialize()
+			},
+			'hashes': {
+				'pupil': hashlib.sha256(json.dumps(self._timeFramesPupil.serialize()).encode('utf-8')).hexdigest(),
+				'duty': hashlib.sha256(json.dumps(self._timeFramesDuty.serialize()).encode('utf-8')).hexdigest(),
+				'teacher': hashlib.sha256(json.dumps(self._teacherList.serialize()).encode('utf-8')).hexdigest(),
+				'subjects': hashlib.sha256(json.dumps(self._subjectList.serialize()).encode('utf-8')).hexdigest()
+			}
 		}
