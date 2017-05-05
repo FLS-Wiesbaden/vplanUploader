@@ -18,7 +18,6 @@ from planparser.davinci import DavinciJsonParser
 import pickle
 import traceback
 import inspect
-import pprint
 
 app = None
 appQt = None
@@ -154,8 +153,6 @@ class Vertretungsplaner(QObject):
 		self.search = Thread(target=SearchPlaner, args=(self,)).start()
 
 	def send_table(self, table, absFile, planType = 'all'):
-		import pprint
-		pprint.pprint(table)
 		data = json.dumps(table).encode('utf8')
 		data = base64.encodestring(data).decode('utf8').replace('\n', '')
 		values = {

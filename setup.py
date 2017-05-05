@@ -8,16 +8,16 @@ import sys
 from cx_Freeze import setup, Executable
 
 files = [
-#	'Microsoft.VC90.CRT.manifest',
+	# 'Microsoft.VC90.CRT.manifest',
 	'msvcr90.dll',
 	'msvcp90.dll',
 	'msvcm90.dll',
-	'config.ini',
+	'config.ini'
 ]
 
 # DEFAULT VALUES
 setupName = 'FLS Vertretungsplaner'
-setupVersion = "4.21"
+setupVersion = "4.22"
 setupDescription = "Vertretungsplaner Client"
 setupUrl = 'https://www.fls-wiesbaden.de'
 setupIco = 'fls_logo.ico'
@@ -43,28 +43,26 @@ flsvplan = Executable(
 	base = base,
 	icon = "fls_logo.ico",
 	targetName = exeName,
-	copyDependentFiles = True,
-	appendScriptToExe = True,
-	appendScriptToLibrary = True,
-	compress = True
-	)
+	#copyDependentFiles = True,
+	#appendScriptToExe = True,
+	#appendScriptToLibrary = True,
+)
 
 flsvplan_debug = Executable(
 	"flsvplan.py",
 	base = None,
 	icon = "fls_logo.ico",
 	targetName = exeDebug,
-	copyDependentFiles = True,
-	appendScriptToExe = True,
-	appendScriptToLibrary = True,
-	compress = False
-	)
+	#copyDependentFiles = True,
+	#appendScriptToExe = True,
+	#appendScriptToLibrary = True,
+)
 
 buildOpts = {
 	'include_files': files,
-	'copy_dependent_files': True,
-	'append_script_to_exe': True
-	}
+	#'copy_dependent_files': True,
+	#'append_script_to_exe': True,
+}
 
 setup(
 	name = setupName,

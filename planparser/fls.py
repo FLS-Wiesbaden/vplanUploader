@@ -70,6 +70,7 @@ class FlsCsvParser(BasicParser):
 				newEntry._hours = hours
 				newEntry._teacher = teacher
 				newEntry._subject = subject
+				newEntry._room = room
 				newEntry._course = [className.strip()]
 				newEntry._info = info
 				newEntry._note = note

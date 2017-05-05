@@ -60,7 +60,7 @@ class ErrorDialog(QDialog):
 
 	def setupUi(self):
 		self.setWindowTitle('Fehler-Log')
-		self.setWindowIcon(QIcon('fls_logo.ico'))
+		self.setWindowIcon(QIcon('logo.ico'))
 		self.resize(800, 800)
 
 		# layout
