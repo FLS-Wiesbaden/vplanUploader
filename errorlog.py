@@ -57,6 +57,7 @@ class ErrorDialog(QDialog):
 	@pyqtSlot()
 	def cleanup(self):
 		self.logContent.clear()
+		self.hasData = False
 
 	def setupUi(self):
 		self.setWindowTitle('Fehler-Log')
