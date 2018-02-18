@@ -17,7 +17,7 @@ files = [
 
 # DEFAULT VALUES
 setupName = 'FLS Vertretungsplaner'
-setupVersion = "4.22"
+setupVersion = "4.23"
 setupDescription = "Vertretungsplaner Client"
 setupUrl = 'https://www.fls-wiesbaden.de'
 setupIco = 'fls_logo.ico'
@@ -41,7 +41,7 @@ if sys.platform == "win32":
 flsvplan = Executable(
 	"flsvplan.py",
 	base = base,
-	icon = "fls_logo.ico",
+	icon = setupIco,
 	targetName = exeName,
 	#copyDependentFiles = True,
 	#appendScriptToExe = True,
@@ -51,7 +51,7 @@ flsvplan = Executable(
 flsvplan_debug = Executable(
 	"flsvplan.py",
 	base = None,
-	icon = "fls_logo.ico",
+	icon = setupIco,
 	targetName = exeDebug,
 	#copyDependentFiles = True,
 	#appendScriptToExe = True,
