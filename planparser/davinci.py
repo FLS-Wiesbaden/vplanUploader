@@ -268,7 +268,8 @@ class DavinciJsonParser(BasicParser):
 			self.parseAbsentClasses()
 			self.parseAbsentTeachers()
 			self.parseStandin()
-			self.parseYardDuty()
+			if 'supervisionTimes' in self._fileContent['result']['displaySchedule'].keys():
+				self.parseYardDuty()
 		except Exception as e:
 			self._errorDialog.addError('Could not parse the plan. Unexpected error occured: %s.' % (str(e),))
 			planParsedSuccessful = False
