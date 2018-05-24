@@ -289,7 +289,7 @@ class DavinciJsonParser(BasicParser):
 				for tr in tf['teamRefs']:
 					if len(tr) > 0:
 						if tr in self._teams.keys():
-							schoolClass.setTeam(teams[tr])
+							schoolClass.setTeam(self._teams[tr])
 
 			self._classList.append(schoolClass)
 
