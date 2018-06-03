@@ -9,9 +9,10 @@ from cx_Freeze import setup, Executable
 
 files = [
 	# 'Microsoft.VC90.CRT.manifest',
-	'msvcr90.dll',
-	'msvcp90.dll',
-	'msvcm90.dll',
+	## Include automatically if available?
+	#'msvcr90.dll',
+	#'msvcp90.dll',
+	#'msvcm90.dll',
 	'config.ini'
 ]
 
