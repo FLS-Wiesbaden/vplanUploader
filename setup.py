@@ -4,8 +4,9 @@
 # @author Lukas Schreiner
 #
 
-import sys
+import sys, os.path
 from cx_Freeze import setup, Executable
+scriptDir = os.path.dirname(os.path.realpath(__file__))
 
 files = [
 	# 'Microsoft.VC90.CRT.manifest',
@@ -13,7 +14,7 @@ files = [
 	#'msvcr90.dll',
 	#'msvcp90.dll',
 	#'msvcm90.dll',
-	'config.ini'
+	os.path.join(scriptDir, 'config.ini')
 ]
 
 # DEFAULT VALUES
@@ -25,11 +26,11 @@ setupIco = 'fls_logo.ico'
 if sys.argv[-1] in ['gks', 'fls']:
 	variant = sys.argv.pop()
 	setupIco = '%s.ico' % (variant,)
-	files.append(setupIco)
+	files.append(os.path.join(scriptDir, setupIco))
 	if variant == 'gks':
 		setupUrl = 'http://vplan.gks-obertshausen.de'
 		setupName = 'GKS Vertretungsplaner'
-files.append((setupIco, 'logo.ico'))
+files.append((os.path.join(scriptDir, setupIco), 'logo.ico'))
 
 base = None
 exeName = 'flsvplan'
