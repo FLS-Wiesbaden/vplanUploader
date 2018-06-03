@@ -14,8 +14,10 @@ files = [
 	#'msvcr90.dll',
 	#'msvcp90.dll',
 	#'msvcm90.dll',
-	os.path.join(scriptDir, 'config.ini')
+	os.path.join(scriptDir, 'config.ini.sample')
 ]
+if os.path.exists(os.path.join(scriptDir, 'config.ini')):
+	files.append(os.path.join(scriptDir, 'config.ini'))
 
 # DEFAULT VALUES
 setupName = 'FLS Vertretungsplaner'
