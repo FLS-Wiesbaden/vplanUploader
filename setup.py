@@ -24,15 +24,15 @@ setupName = 'FLS Vertretungsplaner'
 setupVersion = "4.25"
 setupDescription = "Vertretungsplaner Client"
 setupUrl = 'https://www.fls-wiesbaden.de'
-setupIco = 'fls.ico'
+setupIco = 'logo.ico'
+setupSrcIco = 'fls.ico'
 if sys.argv[-1] in ['gks', 'fls']:
 	variant = sys.argv.pop()
-	setupIco = '%s.ico' % (variant,)
-	files.append(os.path.join(scriptDir, 'pixmaps', setupIco))
+	setupSrcIco = '%s.ico' % (variant,)
 	if variant == 'gks':
-		setupUrl = 'http://vplan.gks-obertshausen.de'
+		setupUrl = 'https://vplan.gks-obertshausen.de'
 		setupName = 'GKS Vertretungsplaner'
-files.append((os.path.join(scriptDir, 'pixmaps', setupIco), 'logo.ico'))
+files.append((os.path.join(scriptDir, 'pixmaps', setupSrcIco), setupIco))
 
 base = None
 exeName = 'flsvplan'
