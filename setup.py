@@ -21,18 +21,18 @@ if os.path.exists(os.path.join(scriptDir, 'config.ini')):
 
 # DEFAULT VALUES
 setupName = 'FLS Vertretungsplaner'
-setupVersion = "4.24"
+setupVersion = "4.25"
 setupDescription = "Vertretungsplaner Client"
 setupUrl = 'https://www.fls-wiesbaden.de'
-setupIco = 'fls_logo.ico'
+setupIco = 'fls.ico'
 if sys.argv[-1] in ['gks', 'fls']:
 	variant = sys.argv.pop()
 	setupIco = '%s.ico' % (variant,)
-	files.append(os.path.join(scriptDir, setupIco))
+	files.append(os.path.join(scriptDir, 'pixmaps', setupIco))
 	if variant == 'gks':
 		setupUrl = 'http://vplan.gks-obertshausen.de'
 		setupName = 'GKS Vertretungsplaner'
-files.append((os.path.join(scriptDir, setupIco), 'logo.ico'))
+files.append((os.path.join(scriptDir, 'pixmaps', setupIco), 'logo.ico'))
 
 base = None
 exeName = 'flsvplan'
