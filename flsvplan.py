@@ -153,65 +153,91 @@ class Vertretungsplaner(QObject):
 		self.search = Thread(target=SearchPlaner, args=(self,)).start()
 
 	def send_table(self, table, absFile, planType = 'all'):
-		data = json.dumps(table).encode('utf8')
-		data = base64.encodestring(data).decode('utf8').replace('\n', '')
-		values = {
-			'apikey': base64.encodestring(self.getAPIKey().encode('utf8')).decode('utf8').replace('\n', ''),
-			'data': data,
-			'type': planType
-		}
+		data = json.dumps(table).encode('utf-8')
+		# check what we need to do.
+		# 1st we need to save the data?
+		if self.config.getboolean('options', 'saveResult'):
+			destFileName = os.path.join(
+				self.config.get('default', 'resultPath'), 
+				'vplan-result-{:s}.json'.format(datetime.now().strftime('%Y-%m-%d_%H%M%S_%f'))
+			)
+			if not os.path.exists(os.path.dirname(destFileName)):
+				os.makedirs(os.path.dirname(destFileName))
+			with open(destFileName, 'wb') as f:
+				f.write('Type: {:s}\n'.format(planType).encode('utf-8'))
+				f.write(data)
 
-		if self.getOption('debugOnline'):
-			values['XDEBUG_SESSION_START'] = '1'
-		
-		d = urllib.parse.urlencode(values)
-		opener = None
-		if self.isProxyEnabled():
-			print('Proxy is activated')
-			httpproxy = "http://"+self.config.get("proxy", "phost")+":"+self.config.get("proxy", "pport")
-			proxies = {
-				"http" : httpproxy,
-				"https": httpproxy
+		if self.config.getboolean('options', 'upload'):
+			data = base64.encodestring(data).decode('utf-8').replace('\n', '')
+			values = {
+				'apikey': base64.encodestring(self.getAPIKey().encode('utf-8')).decode('utf-8').replace('\n', ''),
+				'data': data,
+				'type': planType
 			}
 
-			opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
-			urllib.request.install_opener(opener)
+			if self.getOption('debugOnline'):
+				values['XDEBUG_SESSION_START'] = '1'
+			
+			d = urllib.parse.urlencode(values)
+			opener = None
+			if self.isProxyEnabled():
+				print('Proxy is activated')
+				httpproxy = "http://"+self.config.get("proxy", "phost")+":"+self.config.get("proxy", "pport")
+				proxies = {
+					"http" : httpproxy,
+					"https": httpproxy
+				}
 
-		else:
-			print('Proxy is deactivated')
-			opener = urllib.request.build_opener(urllib.request.HTTPHandler)
-			urllib.request.install_opener(opener)
+				opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
+				urllib.request.install_opener(opener)
 
-		request = urllib.request.Request(self.getSendURL(), d.encode('utf8'))
-		if self.config.has_option("siteauth", "enable") and self.config.get("siteauth", "enable") == 'True':
-			authstr = base64.encodestring(
-					('%s:%s' % (
-						self.config.get("siteauth", "username"),
-						self.config.get("siteauth", "password")
-					)).encode('utf8')
-				).decode('utf8').replace('\n', '')
-			request.add_header("Authorization", "Basic %s" % authstr)
+			else:
+				print('Proxy is deactivated')
+				opener = urllib.request.build_opener(urllib.request.HTTPHandler)
+				urllib.request.install_opener(opener)
 
-		# add post info
-		request.add_header('Content-Type', 'application/x-www-form-urlencoded;charset=utf-8')
+			request = urllib.request.Request(self.getSendURL(), d.encode('utf-8'))
+			if self.config.has_option("siteauth", "enable") and self.config.get("siteauth", "enable") == 'True':
+				authstr = base64.encodestring(
+						('%s:%s' % (
+							self.config.get("siteauth", "username"),
+							self.config.get("siteauth", "password")
+						)).encode('utf-8')
+					).decode('utf-8').replace('\n', '')
+				request.add_header("Authorization", "Basic %s" % authstr)
 
-		try:
-			response = opener.open(request)
-			code = response.read()
-			self.showToolTip('Vertretungsplan hochgeladen','Die Datei wurde erfolgreich hochgeladen.','info')
-			print('Erfolgreich hochgeladen.')
-		except urllib.error.URLError as err:
-			self.createCoreDump(err)
-			self.showToolTip('Warnung','Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
-			print("URL-Fehler aufgetreten: %s" % ( err.reason, ))
-		except urllib.error.HTTPError as err:
-			self.createCoreDump(err)
-			self.showToolTip('Warnung','Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
-			print("HTTP-Fehler aufgetreten: %i - %s" % ( err.code, err.reason ))
-		except Exception as err:
-			self.createCoreDump(err)
-			self.showToolTip('Warnung','Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!','error')
-			print("Unbekannter Fehler aufgetreten: ", err)
+			# add post info
+			request.add_header('Content-Type', 'application/x-www-form-urlencoded;charset=utf-8')
+
+			try:
+				response = opener.open(request)
+				code = response.read()
+				self.showToolTip('Vertretungsplan hochgeladen', 'Die Datei wurde erfolgreich hochgeladen.', 'info')
+				print('Erfolgreich hochgeladen.')
+			except urllib.error.URLError as err:
+				self.createCoreDump(err)
+				self.showToolTip(
+					'Warnung',
+					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!',
+					'error'
+				)
+				print("URL-Fehler aufgetreten: %s" % ( err.reason, ))
+			except urllib.error.HTTPError as err:
+				self.createCoreDump(err)
+				self.showToolTip(
+					'Warnung',
+					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!',
+					'error'
+				)
+				print("HTTP-Fehler aufgetreten: %i - %s" % ( err.code, err.reason ))
+			except Exception as err:
+				self.createCoreDump(err)
+				self.showToolTip(
+					'Warnung',
+					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!',
+					'error'
+				)
+				print("Unbekannter Fehler aufgetreten: ", err)
 
 		# now move the file and save an backup. Also delete the older one.
 		self.moveAndDeleteVPlanFile(absFile)

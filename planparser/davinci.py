@@ -415,11 +415,6 @@ class DavinciJsonParser(BasicParser):
 			else:
 				duplicateLes.append(lesHash)
 
-			if 'classCodes' in les.keys() and '10BA-1' in les['classCodes']:
-				import pprint
-				pprint.pprint(les)
-				print('\n-----\n')
-
 			entryDates = []
 			for dt in les['dates']:
 				entryDates.append('%s.%s.%s' % (dt[6:], dt[4:6], dt[:4]))

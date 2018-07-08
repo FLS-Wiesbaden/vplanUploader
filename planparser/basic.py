@@ -7,6 +7,7 @@
 # @author Lukas Schreiner
 
 from PyQt5.QtCore import QObject, pyqtSignal
+import json, uuid, hashlib
 
 class BasicParser(QObject):
 
@@ -108,6 +109,8 @@ class ChangeEntry(object):
 						'notes': self._note,
 						'info': self._info
 					}
+					# generate guid
+					e['guid'] = str(uuid.UUID(hashlib.blake2s(json.dumps(e).encode('utf-8'), digest_size=16).hexdigest()))
 					entries.append(e)
 
 		return entries
