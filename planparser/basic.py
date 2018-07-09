@@ -95,9 +95,9 @@ class ChangeEntry(object):
 					e = {
 						'type': self._planType,
 						'date': day,
-						'hour': hour,
-						'starttime': self._startTime,
-						'endtime': self._endTime,
+						'hour': hour['hour'],
+						'starttime': self._startTime if hour['start'] is None else hour['start'],
+						'endtime': self._endTime if hour['end'] is None else hour['end'],
 						'teacher': str(self._teacher) if self._teacher is not None else None,
 						'subject': self._subject,
 						'room': self._room,

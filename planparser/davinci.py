@@ -191,7 +191,12 @@ class Timetable(object):
 
 		for to in self._list:
 			if to._startTime >= startTime and to._endTime <= endTime:
-				timeObjects.append(to._label)
+				# times are only in format: hhmm
+				timeObjects.append({
+					'hour': to._label,
+					'start': to._startTime + '00',
+					'end': to._endTime + '00'
+				})
 
 		return timeObjects
 
