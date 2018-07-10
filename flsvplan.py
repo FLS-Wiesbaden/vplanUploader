@@ -1,36 +1,51 @@
 #!/usr/bin/env python3
 # -*- coding: utf8 -*-
-#
-# @author Lukas Schreiner
-#
 
-import urllib.request, urllib.parse, urllib.error, traceback, sys, re
-import time, os, os.path, json, codecs, base64, configparser, shutil, csv
-from searchplaner import SearchPlaner
+"""Module to upload standin plans.
+
+This module is there in order to parse, figure out and uploads
+standin plans for the FLS Wiesbaden framework.
+"""
+
+__all__ = []
+__version__ = '4.25'
+__author__ = 'Lukas Schreiner'
+
+import urllib.request
+import urllib.parse
+import urllib.error
+import traceback
+import sys
+import os
+import os.path
+import json
+import base64
+import configparser
+import shutil
+import pickle
 from threading import Thread
 from datetime import datetime
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtGui import QIcon
+from searchplaner import SearchPlaner
 from errorlog import ErrorDialog
 from planparser.fls import FlsCsvParser
 from planparser.davinci import DavinciJsonParser
-import pickle
-import traceback
-import inspect
 
-app = None
-appQt = None
+APP = None
+APPQT = None
 
-class WatchFile:
+class WatchFile(object):
+	"""A file which is or was watched in order to retrieve information"""
 
 	def __init__(self, path, fname):
 		self.path = path
 		self.name = fname
 
-		st_info = os.stat(self.getFullName)
-		self.mtime = st_info.st_mtime
-		self.atime = st_info.st_atime
+		stInfo = os.stat(self.getFullName)
+		self.mtime = stInfo.st_mtime
+		self.atime = stInfo.st_atime
 
 	@property
 	def getFullName(self):
@@ -55,23 +70,13 @@ class Vertretungsplaner(QObject):
 		return self.locked
 
 	def getOption(self, name):
-		if self.config.has_option('options', name):
-			if self.config.get('options', name) in ['True', True]:
-				return True
-			else:
-				return False
-		else:
-			return False
+		return self.config.has_option('options', name) and self.config.get('options', name) in ['True', True]
 
 	def getIntervall(self):
 		return float(self.config.get("default", "intervall"))
 
 	def isProxyEnabled(self):
-		if self.config.get('proxy', 'enable') == 'True' or \
-				self.config.get('proxy', 'enable') is True:
-			return True
-		else:
-			return False
+		return self.config.get('proxy', 'enable') == 'True' or self.config.get('proxy', 'enable') is True
 
 	def getRun(self):
 		return self.run
@@ -79,8 +84,14 @@ class Vertretungsplaner(QObject):
 	def setRun(self, run):
 		self.run = run
 
+	def showInfo(self, title, msg):
+		self.showToolTip(title, msg, 'info')
+
+	def showError(self, title, msg):
+		self.showToolTip(title, msg, 'error')
+
 	def showToolTip(self, title, msg, msgtype):
-		trayIcon = QSystemTrayIcon.Critical if msgtype is 'error' else QSystemTrayIcon.Information
+		trayIcon = QSystemTrayIcon.Critical if msgtype == 'error' else QSystemTrayIcon.Information
 		timeout = 10000
 		self.message.emit(title, msg, trayIcon, timeout)
 
@@ -93,12 +104,13 @@ class Vertretungsplaner(QObject):
 
 		try:
 			after = dict([(f, WatchFile(pathToWatch, f)) for f in os.listdir(pathToWatch)])
-		except FileNotFoundError as e:
+		except FileNotFoundError:
 			print('\nCould not poll directory %s (does not exist!)' % (pathToWatch,))
 			# try recreate the directory (maybe it does not exist in base path:
 			try:
 				os.makedirs(pathToWatch)
-			except: pass
+			except:
+				pass
 			self.locked = False
 			return
 
@@ -145,20 +157,20 @@ class Vertretungsplaner(QObject):
 				os.makedirs(pathToWatch)
 
 			self.before = dict([(f, WatchFile(pathToWatch, f)) for f in os.listdir(pathToWatch)])
-		except FileNotFoundError as e:
+		except FileNotFoundError:
 			print('\nCould not poll directory %s (does not exist!)' % (pathToWatch,))
 			self.before = {}
 
 		# Now start Looping
 		self.search = Thread(target=SearchPlaner, args=(self,)).start()
 
-	def send_table(self, table, absFile, planType = 'all'):
+	def sendPlan(self, table, absFile, planType='all'):
 		data = json.dumps(table).encode('utf-8')
 		# check what we need to do.
 		# 1st we need to save the data?
 		if self.config.getboolean('options', 'saveResult'):
 			destFileName = os.path.join(
-				self.config.get('default', 'resultPath'), 
+				self.config.get('default', 'resultPath'),
 				'vplan-result-{:s}.json'.format(datetime.now().strftime('%Y-%m-%d_%H%M%S_%f'))
 			)
 			if not os.path.exists(os.path.dirname(destFileName)):
@@ -168,16 +180,16 @@ class Vertretungsplaner(QObject):
 				f.write(data)
 
 		if self.config.getboolean('options', 'upload'):
-			data = base64.encodestring(data).decode('utf-8').replace('\n', '')
+			data = base64.b64encode(data).decode('utf-8').replace('\n', '')
 			values = {
-				'apikey': base64.encodestring(self.getAPIKey().encode('utf-8')).decode('utf-8').replace('\n', ''),
+				'apikey': base64.b64encode(self.getAPIKey().encode('utf-8')).decode('utf-8').replace('\n', ''),
 				'data': data,
 				'type': planType
 			}
 
 			if self.getOption('debugOnline'):
 				values['XDEBUG_SESSION_START'] = '1'
-			
+
 			d = urllib.parse.urlencode(values)
 			opener = None
 			if self.isProxyEnabled():
@@ -198,7 +210,7 @@ class Vertretungsplaner(QObject):
 
 			request = urllib.request.Request(self.getSendURL(), d.encode('utf-8'))
 			if self.config.has_option("siteauth", "enable") and self.config.get("siteauth", "enable") == 'True':
-				authstr = base64.encodestring(
+				authstr = base64.b64encode(
 						('%s:%s' % (
 							self.config.get("siteauth", "username"),
 							self.config.get("siteauth", "password")
@@ -211,31 +223,31 @@ class Vertretungsplaner(QObject):
 
 			try:
 				response = opener.open(request)
-				code = response.read()
-				self.showToolTip('Vertretungsplan hochgeladen', 'Die Datei wurde erfolgreich hochgeladen.', 'info')
+				response.read()
+				self.showInfo('Vertretungsplan hochgeladen', 'Die Datei wurde erfolgreich hochgeladen.')
 				print('Erfolgreich hochgeladen.')
-			except urllib.error.URLError as err:
-				self.createCoreDump(err)
-				self.showToolTip(
-					'Warnung',
-					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!',
-					'error'
-				)
-				print("URL-Fehler aufgetreten: %s" % ( err.reason, ))
 			except urllib.error.HTTPError as err:
 				self.createCoreDump(err)
-				self.showToolTip(
+				self.showError(
 					'Warnung',
-					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!',
-					'error'
+					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. \
+					Bitte kontaktieren Sie das Website-Team der FLS!'
 				)
-				print("HTTP-Fehler aufgetreten: %i - %s" % ( err.code, err.reason ))
+				print('HTTP-Fehler aufgetreten: {:d} - {:s}'.format(err.code, err.reason))
+			except urllib.error.URLError as err:
+				self.createCoreDump(err)
+				self.showError(
+					'Warnung',
+					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. \
+					Bitte kontaktieren Sie das Website-Team der FLS!'
+				)
+				print('URL-Fehler aufgetreten: {:s}'.format(err.reason))
 			except Exception as err:
 				self.createCoreDump(err)
-				self.showToolTip(
+				self.showError(
 					'Warnung',
-					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. Bitte kontaktieren Sie das Website-Team der FLS!',
-					'error'
+					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. \
+					Bitte kontaktieren Sie das Website-Team der FLS!'
 				)
 				print("Unbekannter Fehler aufgetreten: ", err)
 
@@ -250,9 +262,9 @@ class Vertretungsplaner(QObject):
 			__file__
 		except NameError:
 			__file__ = 'flsvplan.py'
-		
-		path = os.path.dirname(__file__) if len(os.path.dirname(__file__)) > 0 else sys.path[0]
-		if len(path) > 0 and not os.path.isdir(path):
+
+		path = os.path.dirname(__file__) if os.path.dirname(__file__) else sys.path[0]
+		if path and not os.path.isdir(path):
 			path = os.path.dirname(path)
 		path = '%s%scoredump' % (path, os.sep)
 		filename = '%s%s%s-%s.dump' % (path, os.sep, __file__, datetime.now().strftime('%Y%m%d%H%M%S%f'))
@@ -260,7 +272,7 @@ class Vertretungsplaner(QObject):
 		if os.path.exists(path):
 			shutil.rmtree(path, ignore_errors=False, onerror=None)
 		os.makedirs(path)
-		
+
 		dump = {}
 		dump['tb'] = traceback.format_exc()
 		dump['tbTrace'] = {}
@@ -274,7 +286,7 @@ class Vertretungsplaner(QObject):
 
 		with open(filename, 'wb') as f:
 			pickle.dump(dump, f, protocol=pickle.HIGHEST_PROTOCOL)
-			
+
 		print('Coredump created in %s' % (filename,))
 
 	def dumpObject(self, obj):
@@ -297,30 +309,30 @@ class Vertretungsplaner(QObject):
 			os.remove(self.lastFile)
 			print('File %s removed' % (self.lastFile))
 		# move
-		file_new = ''
-		if self.config.get('options','backupFiles') == 'True':
-			file_new = "%s.backup" % (path)
+		newFile = ''
+		if self.config.get('options', 'backupFiles') == 'True':
+			newFile = "%s.backup" % (path)
 			if self.config.get('options', 'backupFolder') != 'False':
 				backdir = self.config.get('options', 'backupFolder')
 				if backdir[-1:] is not os.sep:
 					backdir = '%s%s' % (backdir, os.sep)
-				file_new = '%s%s%s%s.backup' % (self.getWatchPath(), os.sep, backdir, file)
+				newFile = '%s%s%s%s.backup' % (self.getWatchPath(), os.sep, backdir, path)
 				# before: check if folder eixsts.
 				backdir = '%s%s%s' % (self.getWatchPath(), os.sep, backdir)
 				if not os.path.exists(backdir):
 					os.makedirs(backdir)
-				print('Copy %s to %s for backup.' % (path, file_new))
-				shutil.copyfile(path, file_new)
+				print('Copy %s to %s for backup.' % (path, newFile))
+				shutil.copyfile(path, newFile)
 
 		if self.config.get('options', 'delUpFile') == 'True' and os.path.exists(path):
 			print('Delete uploaded file %s' % (path))
 			os.remove(path)
 
-		self.lastFile = file_new
+		self.lastFile = newFile
 
 	def handlingFlsCSV(self, fileName):
 		# send a notification
-		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden und wird jetzt verarbeitet.','info')
+		self.showInfo('Neuer Vertretungsplan', 'Es wurde eine neue Datei gefunden und wird jetzt verarbeitet.')
 		absPath = os.path.join(self.config.get('default', 'path'), fileName)
 
 		try:
@@ -331,13 +343,15 @@ class Vertretungsplaner(QObject):
 			djp.preParse()
 			djp.parse()
 			djp.postParse()
-			data  = djp.getResult()
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet und wird nun hochgeladen.','info')
-			self.send_table(data, absPath)
+			data = djp.getResult()
+			self.showInfo('Neuer Vertretungsplan', 'Vertretungsplan wurde verarbeitet und wird nun hochgeladen.')
+			self.sendPlan(data, absPath)
 		except Exception as e:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden, weil die Datei fehlerhaft ist.','error')
+			self.showError(
+				'Neuer Vertretungsplan', 'Vertretungsplan konnte nicht verarbeitet werden, \
+				weil die Datei fehlerhaft ist.'
+			)
 			print('Error: %s' % (str(e),))
-			import traceback
 			traceback.print_exc()
 			self.dlg.addError(str(e))
 			self.showDlg.emit()
@@ -349,7 +363,10 @@ class Vertretungsplaner(QObject):
 
 	def handlingDavinciJson(self, fileName):
 		# send a notification
-		self.showToolTip('Neuer Vertretungsplan','Es wurde eine neue Datei gefunden und wird jetzt verarbeitet.','info')
+		self.showInfo(
+			'Neuer Vertretungsplan',
+			'Es wurde eine neue Datei gefunden und wird jetzt verarbeitet.'
+		)
 		absPath = os.path.join(self.config.get('default', 'path'), fileName)
 
 		try:
@@ -360,13 +377,15 @@ class Vertretungsplaner(QObject):
 			djp.preParse()
 			djp.parse()
 			djp.postParse()
-			data  = djp.getResult()
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan wurde verarbeitet und wird nun hochgeladen.','info')
-			self.send_table(data, absPath)
+			data = djp.getResult()
+			self.showInfo('Neuer Vertretungsplan', 'Vertretungsplan wurde verarbeitet und wird nun hochgeladen.')
+			self.sendPlan(data, absPath)
 		except Exception as e:
-			self.showToolTip('Neuer Vertretungsplan','Vertretungsplan konnte nicht verarbeitet werden, weil die Datei fehlerhaft ist.','error')
+			self.showError(
+				'Neuer Vertretungsplan',
+				'Vertretungsplan konnte nicht verarbeitet werden, weil die Datei fehlerhaft ist.'
+			)
 			print('Error: %s' % (str(e),))
-			import traceback
 			traceback.print_exc()
 			self.dlg.addError(str(e))
 			self.showDlg.emit()
@@ -392,7 +411,7 @@ class Vertretungsplaner(QObject):
 
 	@pyqtSlot()
 	def bye(self):
-		global appQt
+		global APPQT
 		self.run = False
 		sys.exit(0)
 
@@ -406,10 +425,10 @@ class Vertretungsplaner(QObject):
 
 		self.tray.show()
 
-		self.showToolTip('Vertretungsplaner startet...', 'Bei Problemen wenden Sie sich bitte an das Website-Team der Friedrich-List-Schule Wiesbaden.', 'info')
-
-	def getXmlRaw(self, element):
-		return element.childNodes[0].wholeText
+		self.showInfo(
+			'Vertretungsplaner startet...',
+			'Bei Problemen wenden Sie sich bitte an das Website-Team der Friedrich-List-Schule Wiesbaden.'
+		)
 
 	def __init__(self):
 		super().__init__()
@@ -440,8 +459,8 @@ class Vertretungsplaner(QObject):
 		self.initPlan()
 
 if __name__ == '__main__':
-	appQt = QApplication(sys.argv)
-	appQt.setQuitOnLastWindowClosed(False)
-	app = Vertretungsplaner()
+	APPQT = QApplication(sys.argv)
+	APPQT.setQuitOnLastWindowClosed(False)
+	APP = Vertretungsplaner()
 
-	sys.exit(appQt.exec_())
+	sys.exit(APPQT.exec_())
