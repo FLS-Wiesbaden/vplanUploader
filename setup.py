@@ -19,6 +19,8 @@ setupName = 'FLS Vertretungsplaner'
 setupVersion = "4.25"
 setupDescription = "Vertretungsplaner Client"
 setupUrl = 'https://www.fls-wiesbaden.de'
+setupPublisher = 'Friedrich-List-Schule Wiesbaden'
+setupPublisherMail = 'website-team@fls-wiesbaden.de'
 setupSrcIco = 'fls.ico'
 if sys.argv[-1] in ['gks', 'fls']:
 	variant = sys.argv.pop()
@@ -42,6 +44,7 @@ flsvplan = Executable(
 	base = base,
 	icon = setupIco,
 	targetName = exeName,
+	copyright = setupPublisher
 )
 
 flsvplan_debug = Executable(
@@ -49,6 +52,7 @@ flsvplan_debug = Executable(
 	base = None,
 	icon = setupIco,
 	targetName = exeDebug,
+	copyright = setupPublisher
 )
 
 buildOpts = {
@@ -62,8 +66,8 @@ setup(
 	name = setupName,
 	version = setupVersion,
 	description = setupDescription,
-	author = "Friedrich-List-Schule Wiesbaden",
-	author_email = "website-team@fls-wiesbaden.de",
+	author = setupPublisher,
+	author_email = setupPublisherMail
 	url = setupUrl,
 	options = {'build_exe': buildOpts},
 	executables = [flsvplan, flsvplan_debug]
