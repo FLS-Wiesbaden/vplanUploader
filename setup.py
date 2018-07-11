@@ -16,7 +16,7 @@ if os.path.exists(os.path.join(scriptDir, 'config.ini')):
 
 # DEFAULT VALUES
 setupName = 'FLS Vertretungsplaner'
-setupVersion = "4.25"
+setupVersion = "4.26"
 setupDescription = "Vertretungsplaner Client"
 setupUrl = 'https://www.fls-wiesbaden.de'
 setupPublisher = 'Friedrich-List-Schule Wiesbaden'
@@ -67,7 +67,7 @@ setup(
 	version = setupVersion,
 	description = setupDescription,
 	author = setupPublisher,
-	author_email = setupPublisherMail
+	author_email = setupPublisherMail,
 	url = setupUrl,
 	options = {'build_exe': buildOpts},
 	executables = [flsvplan, flsvplan_debug]
