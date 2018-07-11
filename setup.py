@@ -9,12 +9,7 @@ from cx_Freeze import setup, Executable
 scriptDir = os.path.dirname(os.path.realpath(__file__))
 
 files = [
-	# 'Microsoft.VC90.CRT.manifest',
-	## Include automatically if available?
-	#'msvcr90.dll',
-	#'msvcp90.dll',
-	#'msvcm90.dll',
-	os.path.join(scriptDir, 'config.ini.sample')
+	os.path.join(scriptDir, 'config.ini.sample'),
 ]
 if os.path.exists(os.path.join(scriptDir, 'config.ini')):
 	files.append(os.path.join(scriptDir, 'config.ini'))
@@ -32,6 +27,7 @@ if sys.argv[-1] in ['gks', 'fls']:
 		setupUrl = 'https://vplan.gks-obertshausen.de'
 		setupName = 'GKS Vertretungsplaner'
 setupIco = os.path.join(scriptDir, 'pixmaps', setupSrcIco)
+files.append((setupIco, 'logo.ico'))
 
 base = None
 exeName = 'flsvplan'
@@ -46,9 +42,6 @@ flsvplan = Executable(
 	base = base,
 	icon = setupIco,
 	targetName = exeName,
-	#copyDependentFiles = True,
-	#appendScriptToExe = True,
-	#appendScriptToLibrary = True,
 )
 
 flsvplan_debug = Executable(
@@ -56,15 +49,13 @@ flsvplan_debug = Executable(
 	base = None,
 	icon = setupIco,
 	targetName = exeDebug,
-	#copyDependentFiles = True,
-	#appendScriptToExe = True,
-	#appendScriptToLibrary = True,
 )
 
 buildOpts = {
 	'include_files': files,
-	#'copy_dependent_files': True,
-	#'append_script_to_exe': True,
+	'zip_include_packages': ['PyQt5'],
+	'include_msvcr': True,
+	'build_exe': os.path.join('build', 'vplan-{:s}'.format(setupVersion))
 }
 
 setup(
