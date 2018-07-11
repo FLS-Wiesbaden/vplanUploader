@@ -1,6 +1,7 @@
 [default]
 url: https://xxx.xy/geco/admvplan
 path: tmp
+resultPath: results
 api: xxxxxxx
 intervall: 5
 
@@ -24,6 +25,8 @@ createCoreDump: True
 debugOnline: False
 guessOriginalLesson: False
 debugLogs: False
+upload: True
+saveResult: False
 
 [proxy]
 enable: False

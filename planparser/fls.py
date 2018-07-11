@@ -66,8 +66,10 @@ class FlsCsvParser(BasicParser):
 					continue
 
 				newEntry = ChangeEntry([entryDate], 16, None)
-				hours = list(range(hours[0], hours[1] + 1))
-				newEntry._hours = hours
+				tHours = []
+				for h in list(range(hours[0], hours[1] + 1)):
+					tHours.append({'hour': h, 'start': None, 'end': None})
+				newEntry._hours = tHours
 				newEntry._teacher = teacher
 				newEntry._subject = subject
 				newEntry._room = room

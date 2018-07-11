@@ -191,7 +191,12 @@ class Timetable(object):
 
 		for to in self._list:
 			if to._startTime >= startTime and to._endTime <= endTime:
-				timeObjects.append(to._label)
+				# times are only in format: hhmm
+				timeObjects.append({
+					'hour': to._label,
+					'start': to._startTime + '00',
+					'end': to._endTime + '00'
+				})
 
 		return timeObjects
 
@@ -398,6 +403,9 @@ class DavinciJsonParser(BasicParser):
 		pattMovedTo = re.compile(self._config.get('changekind', 'movedTo'))
 		duplicateLes = []
 		noDuplicates = 0
+		noSkipped = 0
+		noSuperseeding = 0
+		concurrentItems = {}
 
 		# find the absent teachers.
 		for les in self._fileContent['result']['displaySchedule']['lessonTimes']:
@@ -415,10 +423,56 @@ class DavinciJsonParser(BasicParser):
 			else:
 				duplicateLes.append(lesHash)
 
-			if 'classCodes' in les.keys() and '10BA-1' in les['classCodes']:
-				import pprint
-				pprint.pprint(les)
-				print('\n-----\n')
+			# substitution cancelled? 
+			if 'cancelled' in les['changes'].keys() and les['changes']['cancelled'] == 'substitutionCancelled':
+				self._errorDialog.addData(pprint.pformat(les))
+				self._errorDialog.addWarning('Found entry which has a cancelled substitution (changes of a change?).')
+				noSuperseeding += 1
+				continue
+
+			# now also those hurdles accomplished. Next one is knocking at the door. 
+			# Check if there is an similiar entry as this one which superseeds it.
+			# E.g. this here is a room change. And there is one which just moves the complete hour away.
+			# But we need to do it only if this changeType is "0".
+			if 'changeType' in les['changes'] and les['changes']['changeType'] > 0 and 'lessonRef' in les.keys():
+				skip = False
+				for subles in self._fileContent['result']['displaySchedule']['lessonTimes']:
+					# skip which don't have changes
+					if 'changes' not in subles.keys():
+						continue
+					# skip those which do not have same key
+					if 'lessonRef' not in subles.keys() or \
+						subles['lessonRef'] != les['lessonRef'] or \
+						subles['courseRef'] != les['courseRef'] or \
+						subles['startTime'] != les['startTime'] or \
+						'roomCodes' not in subles.keys() or \
+						'teacherCodes' not in subles.keys() or \
+						'classCodes' not in subles.keys() or \
+						'changeType' not in subles['changes']:
+						continue
+					subkey = {
+						'classCodes': subles['classCodes'],
+						'roomCodes': subles['roomCodes'],
+						'teacherCodes': subles['teacherCodes']
+					}
+					subhash = hashlib.sha256(json.dumps(subkey, sort_keys=True).encode('utf-8')).hexdigest()
+					mainkey = {
+						'classCodes': les['classCodes'] if 'classCodes' in les.keys() else [],
+						'roomCodes': les['roomCodes'] if 'roomCodes' in les.keys() else [],
+						'teacherCodes': les['teacherCodes'] if 'teacherCodes' in les.keys() else []
+					}
+					mainhash = hashlib.sha256(json.dumps(subkey, sort_keys=True).encode('utf-8')).hexdigest()
+					if subhash != mainhash:
+						continue
+					elif subles['changes']['changeType'] == 0:
+						skip = True
+						break
+
+				if skip:
+					self._errorDialog.addData(pprint.pformat(les))
+					self._errorDialog.addWarning('Skipped, seems there is a superseeding entry!')
+					noSuperseeding += 1
+					continue
 
 			entryDates = []
 			for dt in les['dates']:
@@ -437,6 +491,7 @@ class DavinciJsonParser(BasicParser):
 						newEntry._endTime
 					)
 				)
+				noSkipped += 1
 				continue
 
 			# now check if the type is classAbsence. In that case, we need to switch to classFree, if the 
@@ -472,6 +527,7 @@ class DavinciJsonParser(BasicParser):
 						self._errorDialog.addWarning(
 							'Could not found "subjectCode" (subject) in record - skipping!'
 						)
+						noSkipped += 1
 						continue
 			newEntry._subject = subject
 
@@ -495,6 +551,7 @@ class DavinciJsonParser(BasicParser):
 					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
 						self._errorDialog.addData(pprint.pformat(les))
 						self._errorDialog.addWarning('Could not found "teacherCodes" (teacher) in record - skipping!')
+						noSkipped += 1
 						continue
 			newEntry._teacher = teacher
 			
@@ -519,6 +576,7 @@ class DavinciJsonParser(BasicParser):
 				if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
 					self._errorDialog.addData(pprint.pformat(les))
 					self._errorDialog.addWarning('Could not found "roomCodes" (room) in record - skipping!')
+					noSkipped += 1
 					continue
 			newEntry._room = room
 
@@ -535,6 +593,7 @@ class DavinciJsonParser(BasicParser):
 			except KeyError:
 				self._errorDialog.addData(pprint.pformat(les))
 				self._errorDialog.addWarning('Could not found "classCodes" (course) in record - skipping!')
+				noSkipped += 1
 				continue
 
 			# some information?
@@ -610,6 +669,7 @@ class DavinciJsonParser(BasicParser):
 					self._errorDialog.addInfo(
 						'No lesson reference given and the "guess" algorithm is disabled - skipping!'
 					)
+					noSkipped += 1
 					continue
 
 				self._errorDialog.addData(pprint.pformat(les))
@@ -632,6 +692,12 @@ class DavinciJsonParser(BasicParser):
 
 		if noDuplicates > 0:
 			self._errorDialog.addInfo('Skipped {:d} duplicate entries!'.format(noDuplicates))
+		if noSkipped > 0:
+			self._errorDialog.addInfo('Skipped {:d} entries due to not know how to interpret data!'.format(noSkipped))
+		if noSuperseeding > 0:
+			self._errorDialog.addInfo(
+				'Skipped {:d} entries as it seems there are superseeding entries!'.format(noSuperseeding)
+			)
 
 	def parseYardDuty(self):
 		# find the absent teachers.

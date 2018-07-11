@@ -4,30 +4,31 @@
 # @author Lukas Schreiner
 #
 
-import sys
+import sys, os.path
 from cx_Freeze import setup, Executable
+scriptDir = os.path.dirname(os.path.realpath(__file__))
 
 files = [
-	# 'Microsoft.VC90.CRT.manifest',
-	'msvcr90.dll',
-	'msvcp90.dll',
-	'msvcm90.dll',
-	'config.ini'
+	os.path.join(scriptDir, 'config.ini.sample'),
 ]
+if os.path.exists(os.path.join(scriptDir, 'config.ini')):
+	files.append(os.path.join(scriptDir, 'config.ini'))
 
 # DEFAULT VALUES
 setupName = 'FLS Vertretungsplaner'
-setupVersion = "4.24"
+setupVersion = "4.25"
 setupDescription = "Vertretungsplaner Client"
 setupUrl = 'https://www.fls-wiesbaden.de'
-setupIco = 'fls_logo.ico'
+setupPublisher = 'Friedrich-List-Schule Wiesbaden'
+setupPublisherMail = 'website-team@fls-wiesbaden.de'
+setupSrcIco = 'fls.ico'
 if sys.argv[-1] in ['gks', 'fls']:
 	variant = sys.argv.pop()
-	setupIco = '%s.ico' % (variant,)
-	files.append(setupIco)
+	setupSrcIco = '%s.ico' % (variant,)
 	if variant == 'gks':
-		setupUrl = 'http://vplan.gks-obertshausen.de'
+		setupUrl = 'https://vplan.gks-obertshausen.de'
 		setupName = 'GKS Vertretungsplaner'
+setupIco = os.path.join(scriptDir, 'pixmaps', setupSrcIco)
 files.append((setupIco, 'logo.ico'))
 
 base = None
@@ -43,9 +44,7 @@ flsvplan = Executable(
 	base = base,
 	icon = setupIco,
 	targetName = exeName,
-	#copyDependentFiles = True,
-	#appendScriptToExe = True,
-	#appendScriptToLibrary = True,
+	copyright = setupPublisher
 )
 
 flsvplan_debug = Executable(
@@ -53,23 +52,22 @@ flsvplan_debug = Executable(
 	base = None,
 	icon = setupIco,
 	targetName = exeDebug,
-	#copyDependentFiles = True,
-	#appendScriptToExe = True,
-	#appendScriptToLibrary = True,
+	copyright = setupPublisher
 )
 
 buildOpts = {
 	'include_files': files,
-	#'copy_dependent_files': True,
-	#'append_script_to_exe': True,
+	'zip_include_packages': ['PyQt5'],
+	'include_msvcr': True,
+	'build_exe': os.path.join('build', 'vplan-{:s}'.format(setupVersion))
 }
 
 setup(
 	name = setupName,
 	version = setupVersion,
 	description = setupDescription,
-	author = "Friedrich-List-Schule Wiesbaden",
-	author_email = "website-team@fls-wiesbaden.de",
+	author = setupPublisher,
+	author_email = setupPublisherMail
 	url = setupUrl,
 	options = {'build_exe': buildOpts},
 	executables = [flsvplan, flsvplan_debug]

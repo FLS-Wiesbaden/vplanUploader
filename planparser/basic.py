@@ -7,6 +7,7 @@
 # @author Lukas Schreiner
 
 from PyQt5.QtCore import QObject, pyqtSignal
+import json, uuid, hashlib
 
 class BasicParser(QObject):
 
@@ -94,9 +95,9 @@ class ChangeEntry(object):
 					e = {
 						'type': self._planType,
 						'date': day,
-						'hour': hour,
-						'starttime': self._startTime,
-						'endtime': self._endTime,
+						'hour': hour['hour'],
+						'starttime': self._startTime if hour['start'] is None else hour['start'],
+						'endtime': self._endTime if hour['end'] is None else hour['end'],
 						'teacher': str(self._teacher) if self._teacher is not None else None,
 						'subject': self._subject,
 						'room': self._room,
@@ -108,6 +109,8 @@ class ChangeEntry(object):
 						'notes': self._note,
 						'info': self._info
 					}
+					# generate guid
+					e['guid'] = str(uuid.UUID(hashlib.blake2s(json.dumps(e).encode('utf-8'), digest_size=16).hexdigest()))
 					entries.append(e)
 
 		return entries
