@@ -16,18 +16,22 @@ if os.path.exists(os.path.join(scriptDir, 'config.ini')):
 
 # DEFAULT VALUES
 setupName = 'FLS Vertretungsplaner'
-setupVersion = "4.26"
+setupVersion = "4.27"
 setupDescription = "Vertretungsplaner Client"
 setupUrl = 'https://www.fls-wiesbaden.de'
 setupPublisher = 'Friedrich-List-Schule Wiesbaden'
 setupPublisherMail = 'website-team@fls-wiesbaden.de'
 setupSrcIco = 'fls.ico'
-if sys.argv[-1] in ['gks', 'fls']:
+variant = 'fls'
+if sys.argv[-1] in ['gks', 'fls', 'sds']:
 	variant = sys.argv.pop()
 	setupSrcIco = '%s.ico' % (variant,)
 	if variant == 'gks':
 		setupUrl = 'https://vplan.gks-obertshausen.de'
 		setupName = 'GKS Vertretungsplaner'
+	elif variant == 'sds':
+		setupUrl = 'https://sds.fls-wiesbaden.de'
+		setupName = 'SDS Vertretungsplaner'
 setupIco = os.path.join(scriptDir, 'pixmaps', setupSrcIco)
 files.append((setupIco, 'logo.ico'))
 
