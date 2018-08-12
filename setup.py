@@ -33,7 +33,7 @@ if sys.argv[-1] in ['gks', 'fls', 'sds']:
 		setupUrl = 'https://sds.fls-wiesbaden.de'
 		setupName = 'SDS Vertretungsplaner'
 setupIco = os.path.join(scriptDir, 'pixmaps', setupSrcIco)
-files.append((setupIco, 'logo.ico'))
+#files.append((setupIco, 'logo.ico'))
 
 base = None
 exeName = 'flsvplan'
@@ -61,7 +61,7 @@ flsvplan_debug = Executable(
 
 buildOpts = {
 	'include_files': files,
-	#'zip_include_packages': ['PyQt5.QtNetwork', 'PyQt5.sip', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets'],
+	'zip_include_packages': ['PyQt5.QtNetwork', 'PyQt5.sip', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets', 'sip'],
 	'include_msvcr': True,
 	'build_exe': os.path.join('build', 'vplan-{:s}'.format(setupVersion))
 }
