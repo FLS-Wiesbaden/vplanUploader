@@ -61,7 +61,7 @@ flsvplan_debug = Executable(
 
 buildOpts = {
 	'include_files': files,
-	'zip_include_packages': ['PyQt5'],
+	#'zip_include_packages': ['PyQt5.QtNetwork', 'PyQt5.sip', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets'],
 	'include_msvcr': True,
 	'build_exe': os.path.join('build', 'vplan-{:s}'.format(setupVersion))
 }
