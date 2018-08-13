@@ -32,6 +32,9 @@ from searchplaner import SearchPlaner
 from errorlog import ErrorDialog
 from planparser.fls import FlsCsvParser
 from planparser.davinci import DavinciJsonParser
+# absolute hack, but required for cx_Freeze to work properly.
+if sys.platform == 'win32':
+	import PyQt5.sip
 
 APP = None
 APPQT = None

@@ -17,6 +17,15 @@ files = [
 if os.path.exists(os.path.join(scriptDir, 'config.ini')):
 	files.append(os.path.join(scriptDir, 'config.ini'))
 
+# really dirty hack for Windows Server
+if sys.platform == 'win32':
+	platformsPath = os.path.join(
+	os.path.dirname(sys.executable),
+		'..\\Lib\\site-packages\\PyQt5\\Qt\\plugins\\platforms'
+	)
+	for f in glob.glob(platformsPath + '\\*.dll'):
+		files.append((f, 'platforms\\' + os.path.basename(f)))
+
 # DEFAULT VALUES
 setupVersion = "4.27"
 setupDescription = "Vertretungsplaner Client"
@@ -105,7 +114,6 @@ if sys.platform == "win32":
 		buildDirectory=os.path.join('build', 'vplan-{:s}'.format(setupVersion)),
 		appGuid=setupGuid
 	)
-	print(cmd)
 	exeCmd = shlex.split(cmd)
 	p = subprocess.Popen(exeCmd)
 	p.communicate()
