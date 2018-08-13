@@ -475,8 +475,13 @@ class DavinciJsonParser(BasicParser):
 					continue
 
 			entryDates = []
-			for dt in les['dates']:
-				entryDates.append('%s.%s.%s' % (dt[6:], dt[4:6], dt[:4]))
+			try:
+				for dt in les['dates']:
+					entryDates.append('%s.%s.%s' % (dt[6:], dt[4:6], dt[:4]))
+			except KeyError:
+				self._errorDialog.addData(pprint.pformat(les))
+				self._errorDialog.addError('Found change records without any valid applicable date!')
+				continue
 
 			self._planType = self._planType | BasicParser.PLAN_FILLIN
 			newEntry = ChangeEntry(entryDates, 1, None)

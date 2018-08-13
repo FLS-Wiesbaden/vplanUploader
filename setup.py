@@ -4,7 +4,10 @@
 # @author Lukas Schreiner
 #
 
-import sys, os.path
+import sys
+import os.path
+import subprocess
+import shlex
 from cx_Freeze import setup, Executable
 scriptDir = os.path.dirname(os.path.realpath(__file__))
 
@@ -15,23 +18,29 @@ if os.path.exists(os.path.join(scriptDir, 'config.ini')):
 	files.append(os.path.join(scriptDir, 'config.ini'))
 
 # DEFAULT VALUES
-setupName = 'FLS Vertretungsplaner'
 setupVersion = "4.27"
 setupDescription = "Vertretungsplaner Client"
-setupUrl = 'https://www.fls-wiesbaden.de'
 setupPublisher = 'Friedrich-List-Schule Wiesbaden'
 setupPublisherMail = 'website-team@fls-wiesbaden.de'
-setupSrcIco = 'fls.ico'
-variant = 'fls'
+
 if sys.argv[-1] in ['gks', 'fls', 'sds']:
 	variant = sys.argv.pop()
-	setupSrcIco = '%s.ico' % (variant,)
-	if variant == 'gks':
-		setupUrl = 'https://vplan.gks-obertshausen.de'
-		setupName = 'GKS Vertretungsplaner'
-	elif variant == 'sds':
-		setupUrl = 'https://sds.fls-wiesbaden.de'
-		setupName = 'SDS Vertretungsplaner'
+else:
+	variant = 'fls'
+
+setupSrcIco = '%s.ico' % (variant,)
+if variant == 'fls':
+	setupName = 'FLS Vertretungsplaner'
+	setupUrl = 'https://www.fls-wiesbaden.de'
+	setupGuid = 'ED537E23-D959-4C1A-AEBD-580CDF68E450'
+elif variant == 'gks':
+	setupUrl = 'https://vplan.gks-obertshausen.de'
+	setupName = 'GKS Vertretungsplaner'
+	setupGuid = '22A5D5F7-0677-4691-9D08-5CE05E11AAFD'
+elif variant == 'sds':
+	setupUrl = 'https://sds.fls-wiesbaden.de'
+	setupName = 'SDS Vertretungsplaner'
+	setupGuid = '7CE997E4-8D0A-4406-A3EA-F48CAB29F4A9'
 setupIco = os.path.join(scriptDir, 'pixmaps', setupSrcIco)
 #files.append((setupIco, 'logo.ico'))
 
@@ -61,7 +70,7 @@ flsvplan_debug = Executable(
 
 buildOpts = {
 	'include_files': files,
-	'zip_include_packages': ['PyQt5.QtNetwork', 'PyQt5.sip', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets', 'sip'],
+	'zip_include_packages': ['PyQt5.QtNetwork', 'PyQt5.sip', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets', 'PyQt5', 'sip'],
 	'include_msvcr': True,
 	'build_exe': os.path.join('build', 'vplan-{:s}'.format(setupVersion))
 }
@@ -76,3 +85,27 @@ setup(
 	options = {'build_exe': buildOpts},
 	executables = [flsvplan, flsvplan_debug]
 )
+
+# inno setup?
+if sys.platform == "win32":
+	cmd = 'iscc \
+	/DMyAppVersion="{version}" \
+	/DMyAppName="{name}" \
+	/DMyAppPublisher="{publisher}" \
+	/DMyAppURL="{url}" \
+	/DMyAppExeName="{exeName}" \
+	/DbuildDirectory="{buildDirectory}" \
+	/DMyAppGuid="{appGuid}" \
+	inno_setup.iss'.format(
+		version=setupVersion,
+		name=setupName,
+		publisher=setupPublisher,
+		url=setupUrl,
+		exeName=exeName,
+		buildDirectory=os.path.join('build', 'vplan-{:s}'.format(setupVersion)),
+		appGuid=setupGuid
+	)
+	print(cmd)
+	exeCmd = shlex.split(cmd)
+	p = subprocess.Popen(exeCmd)
+	p.communicate()
