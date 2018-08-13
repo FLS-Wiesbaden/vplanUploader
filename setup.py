@@ -8,6 +8,7 @@ import sys
 import os.path
 import subprocess
 import shlex
+import glob
 from cx_Freeze import setup, Executable
 scriptDir = os.path.dirname(os.path.realpath(__file__))
 
