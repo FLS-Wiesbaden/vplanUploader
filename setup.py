@@ -146,7 +146,7 @@ if sys.platform == "win32":
 # create dist file.
 if not os.path.exists(distDir):
 	try:
-		os.makedirs(distDir)
+		os.makedirs(distDir, exist_ok=True)
 	except:
 		pass
 
