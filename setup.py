@@ -101,6 +101,7 @@ buildOpts = {
 	'include_files': files,
 	'zip_include_packages': ['PyQt5.QtNetwork', 'PyQt5.sip', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets', 'PyQt5', 'sip'],
 	'include_msvcr': True,
+	'includes': ['queue'],
 	'build_exe': os.path.join(buildDir, 'vplan-{:s}'.format(setupVersion))
 }
 
