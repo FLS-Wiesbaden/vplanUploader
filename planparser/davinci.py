@@ -665,6 +665,14 @@ class DavinciJsonParser(BasicParser):
 			except KeyError:
 				pass
 
+			# if a change type is set to 6 = free and we do not have any
+			# change type defined yet, take it!
+			if not newEntry._chgType and 'changeType' in les['changes'] and les['changes']['changeType'] == 6:
+				newEntry._chgType = ChangeEntry.CHANGE_TYPE_FREE
+				# if the info + notes field is empty, lets populate the field by our own:
+				if not newEntry._info and not newEntry._note:
+					newEntry._info = self._config.get('vplan', 'txtReplaceFree')
+
 			# a new lesson which replaces an old one but has no reference...
 			if lessonRef is None and newEntry._teacher == newEntry._changeTeacher \
 				and newEntry._room == newEntry._changeRoom:
@@ -692,6 +700,16 @@ class DavinciJsonParser(BasicParser):
 							newEntry._subject = entry['subject']
 						newEntry._chgType = 0
 						break
+			
+			# in certain situation it may happen, that we misinterpret some data and 
+			# that the standin found does not contain any changes. This is strange and should be
+			# marked somehow!
+			if not newEntry.hasChanges():
+				self._errorDialog.addData(pprint.pformat(les))
+				self._errorDialog.addWarning(
+					'Found changes which is not understandable (no changes !?) - skipping!'
+				)
+				noSkipped += 1
 
 			self._standin.append(newEntry)
 
