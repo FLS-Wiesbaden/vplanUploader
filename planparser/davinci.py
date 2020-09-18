@@ -435,6 +435,12 @@ class DavinciJsonParser(BasicParser):
 			# E.g. this here is a room change. And there is one which just moves the complete hour away.
 			# But we need to do it only if this changeType is "0".
 			if 'changeType' in les['changes'] and les['changes']['changeType'] > 0 and 'lessonRef' in les.keys():
+				mainkey = {
+					'classCodes': les['classCodes'] if 'classCodes' in les.keys() else [],
+					'roomCodes': les['roomCodes'] if 'roomCodes' in les.keys() else [],
+					'teacherCodes': les['teacherCodes'] if 'teacherCodes' in les.keys() else []
+				}
+				mainhash = hashlib.sha256(json.dumps(mainkey, sort_keys=True).encode('utf-8')).hexdigest()
 				skip = False
 				for subles in self._fileContent['result']['displaySchedule']['lessonTimes']:
 					# skip which don't have changes
@@ -445,6 +451,7 @@ class DavinciJsonParser(BasicParser):
 						subles['lessonRef'] != les['lessonRef'] or \
 						subles['courseRef'] != les['courseRef'] or \
 						subles['startTime'] != les['startTime'] or \
+						subles['dates'] != les['dates'] or \
 						'roomCodes' not in subles.keys() or \
 						'teacherCodes' not in subles.keys() or \
 						'classCodes' not in subles.keys() or \
@@ -456,12 +463,6 @@ class DavinciJsonParser(BasicParser):
 						'teacherCodes': subles['teacherCodes']
 					}
 					subhash = hashlib.sha256(json.dumps(subkey, sort_keys=True).encode('utf-8')).hexdigest()
-					mainkey = {
-						'classCodes': les['classCodes'] if 'classCodes' in les.keys() else [],
-						'roomCodes': les['roomCodes'] if 'roomCodes' in les.keys() else [],
-						'teacherCodes': les['teacherCodes'] if 'teacherCodes' in les.keys() else []
-					}
-					mainhash = hashlib.sha256(json.dumps(subkey, sort_keys=True).encode('utf-8')).hexdigest()
 					if subhash != mainhash:
 						continue
 					elif subles['changes']['changeType'] == 0:
