@@ -67,6 +67,8 @@ class BasicParser(QObject):
 
 class ChangeEntry(object):
 
+	CHANGE_TYPE_FREE = 64
+
 	def __init__(self, dates, planType, chgType = 0):
 		self._planType = planType
 		self._chgType = chgType
@@ -83,6 +85,16 @@ class ChangeEntry(object):
 		self._changeRoom = None
 		self._note = ''
 		self._info = ''
+
+	def hasChanges(self):
+		if self._changeTeacher \
+			or self._changeSubject \
+			or self._changeRoom \
+			or self._note \
+			or self._info:
+			return True
+		else:
+			return False
 
 	def asDict(self):
 		entries = []

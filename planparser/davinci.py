@@ -435,6 +435,12 @@ class DavinciJsonParser(BasicParser):
 			# E.g. this here is a room change. And there is one which just moves the complete hour away.
 			# But we need to do it only if this changeType is "0".
 			if 'changeType' in les['changes'] and les['changes']['changeType'] > 0 and 'lessonRef' in les.keys():
+				mainkey = {
+					'classCodes': les['classCodes'] if 'classCodes' in les.keys() else [],
+					'roomCodes': les['roomCodes'] if 'roomCodes' in les.keys() else [],
+					'teacherCodes': les['teacherCodes'] if 'teacherCodes' in les.keys() else []
+				}
+				mainhash = hashlib.sha256(json.dumps(mainkey, sort_keys=True).encode('utf-8')).hexdigest()
 				skip = False
 				for subles in self._fileContent['result']['displaySchedule']['lessonTimes']:
 					# skip which don't have changes
@@ -445,6 +451,7 @@ class DavinciJsonParser(BasicParser):
 						subles['lessonRef'] != les['lessonRef'] or \
 						subles['courseRef'] != les['courseRef'] or \
 						subles['startTime'] != les['startTime'] or \
+						subles['dates'] != les['dates'] or \
 						'roomCodes' not in subles.keys() or \
 						'teacherCodes' not in subles.keys() or \
 						'classCodes' not in subles.keys() or \
@@ -456,12 +463,6 @@ class DavinciJsonParser(BasicParser):
 						'teacherCodes': subles['teacherCodes']
 					}
 					subhash = hashlib.sha256(json.dumps(subkey, sort_keys=True).encode('utf-8')).hexdigest()
-					mainkey = {
-						'classCodes': les['classCodes'] if 'classCodes' in les.keys() else [],
-						'roomCodes': les['roomCodes'] if 'roomCodes' in les.keys() else [],
-						'teacherCodes': les['teacherCodes'] if 'teacherCodes' in les.keys() else []
-					}
-					mainhash = hashlib.sha256(json.dumps(subkey, sort_keys=True).encode('utf-8')).hexdigest()
 					if subhash != mainhash:
 						continue
 					elif subles['changes']['changeType'] == 0:
@@ -475,8 +476,13 @@ class DavinciJsonParser(BasicParser):
 					continue
 
 			entryDates = []
-			for dt in les['dates']:
-				entryDates.append('%s.%s.%s' % (dt[6:], dt[4:6], dt[:4]))
+			try:
+				for dt in les['dates']:
+					entryDates.append('%s.%s.%s' % (dt[6:], dt[4:6], dt[:4]))
+			except KeyError:
+				self._errorDialog.addData(pprint.pformat(les))
+				self._errorDialog.addError('Found change records without any valid applicable date!')
+				continue
 
 			self._planType = self._planType | BasicParser.PLAN_FILLIN
 			newEntry = ChangeEntry(entryDates, 1, None)
@@ -660,6 +666,14 @@ class DavinciJsonParser(BasicParser):
 			except KeyError:
 				pass
 
+			# if a change type is set to 6 = free and we do not have any
+			# change type defined yet, take it!
+			if not newEntry._chgType and 'changeType' in les['changes'] and les['changes']['changeType'] == 6:
+				newEntry._chgType = ChangeEntry.CHANGE_TYPE_FREE
+				# if the info + notes field is empty, lets populate the field by our own:
+				if not newEntry._info and not newEntry._note:
+					newEntry._info = self._config.get('vplan', 'txtReplaceFree')
+
 			# a new lesson which replaces an old one but has no reference...
 			if lessonRef is None and newEntry._teacher == newEntry._changeTeacher \
 				and newEntry._room == newEntry._changeRoom:
@@ -687,6 +701,16 @@ class DavinciJsonParser(BasicParser):
 							newEntry._subject = entry['subject']
 						newEntry._chgType = 0
 						break
+			
+			# in certain situation it may happen, that we misinterpret some data and 
+			# that the standin found does not contain any changes. This is strange and should be
+			# marked somehow!
+			if not newEntry.hasChanges():
+				self._errorDialog.addData(pprint.pformat(les))
+				self._errorDialog.addWarning(
+					'Found changes which is not understandable (no changes !?) - skipping!'
+				)
+				noSkipped += 1
 
 			self._standin.append(newEntry)
 

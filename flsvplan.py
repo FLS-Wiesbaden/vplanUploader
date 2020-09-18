@@ -8,10 +8,9 @@ standin plans for the FLS Wiesbaden framework.
 """
 
 __all__ = []
-__version__ = '4.25'
+__version__ = '4.28'
 __author__ = 'Lukas Schreiner'
 
-import urllib.request
 import urllib.parse
 import urllib.error
 import traceback
@@ -23,6 +22,8 @@ import base64
 import configparser
 import shutil
 import pickle
+import requests
+from requests.auth import HTTPBasicAuth
 from threading import Thread
 from datetime import datetime
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu
@@ -32,6 +33,9 @@ from searchplaner import SearchPlaner
 from errorlog import ErrorDialog
 from planparser.fls import FlsCsvParser
 from planparser.davinci import DavinciJsonParser
+# absolute hack, but required for cx_Freeze to work properly.
+if sys.platform == 'win32':
+	import PyQt5.sip
 
 APP = None
 APPQT = None
@@ -186,12 +190,12 @@ class Vertretungsplaner(QObject):
 				'data': data,
 				'type': planType
 			}
+			values = urllib.parse.urlencode(values)
 
 			if self.getOption('debugOnline'):
 				values['XDEBUG_SESSION_START'] = '1'
 
-			d = urllib.parse.urlencode(values)
-			opener = None
+			proxies = None
 			if self.isProxyEnabled():
 				print('Proxy is activated')
 				httpproxy = "http://"+self.config.get("proxy", "phost")+":"+self.config.get("proxy", "pport")
@@ -199,57 +203,72 @@ class Vertretungsplaner(QObject):
 					"http" : httpproxy,
 					"https": httpproxy
 				}
-
-				opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
-				urllib.request.install_opener(opener)
-
 			else:
 				print('Proxy is deactivated')
-				opener = urllib.request.build_opener(urllib.request.HTTPHandler)
-				urllib.request.install_opener(opener)
-
-			request = urllib.request.Request(self.getSendURL(), d.encode('utf-8'))
+			
+			headers = {}
+			httpauth = None
 			if self.config.has_option("siteauth", "enable") and self.config.get("siteauth", "enable") == 'True':
-				authstr = base64.b64encode(
-						('%s:%s' % (
-							self.config.get("siteauth", "username"),
-							self.config.get("siteauth", "password")
-						)).encode('utf-8')
-					).decode('utf-8').replace('\n', '')
-				request.add_header("Authorization", "Basic %s" % authstr)
+				httpauth = HTTPBasicAuth(
+					self.config.get('siteauth', 'username'),
+					self.config.get('siteauth', 'password')
+				)
 
 			# add post info
-			request.add_header('Content-Type', 'application/x-www-form-urlencoded;charset=utf-8')
+			headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=utf-8'
 
+			errorMessage = None
+			errObj = None
 			try:
-				response = opener.open(request)
-				response.read()
-				self.showInfo('Vertretungsplan hochgeladen', 'Die Datei wurde erfolgreich hochgeladen.')
-				print('Erfolgreich hochgeladen.')
-			except urllib.error.HTTPError as err:
+				req = requests.post(self.getSendURL(), data=values, proxies=proxies, headers=headers, auth=httpauth)
+			except requests.exceptions.ConnectionError as err:
 				self.createCoreDump(err)
-				self.showError(
+				errorMessage = (
 					'Warnung',
-					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. \
-					Bitte kontaktieren Sie das Website-Team der FLS!'
+					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. '
+					'Bitte kontaktieren Sie das Website-Team der FLS! '
+					'Beim Hochladen konnte keine Verbindung zum Server aufgebaut werden.'
 				)
-				print('HTTP-Fehler aufgetreten: {:d} - {:s}'.format(err.code, err.reason))
+				errObj = err
+				print('HTTP-Fehler aufgetreten: {:s}'.format(str(err)))
 			except urllib.error.URLError as err:
 				self.createCoreDump(err)
-				self.showError(
+				errorMessasge = (
 					'Warnung',
 					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. \
 					Bitte kontaktieren Sie das Website-Team der FLS!'
 				)
+				errObj = err
 				print('URL-Fehler aufgetreten: {:s}'.format(err.reason))
 			except Exception as err:
 				self.createCoreDump(err)
-				self.showError(
+				errorMessage = (
 					'Warnung',
 					'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. \
 					Bitte kontaktieren Sie das Website-Team der FLS!'
 				)
+				errObj = err
 				print("Unbekannter Fehler aufgetreten: ", err)
+			else:
+				if req.status_code != 204:
+					errorMessage = (
+						'Warnung',
+						'Der Vertretungsplan konnte eventuell nicht korrekt hochgeladen werden. '
+						'Es wurde ein abweichender Statuscode erhalten: {:d}'.format(req.status_code)
+					)
+					errObj = req.text
+				else:
+					print(req.text)
+					print('Erfolgreich hochgeladen.')
+			
+			# any error to show in detail to user?
+			if errorMessage:
+				if errObj:
+					self.dlg.addData(str(errObj))
+				self.showError(*errorMessage)
+				self.dlg.addError(errorMessage[1])
+			else:
+				self.showInfo('Vertretungsplan hochgeladen', 'Die Datei wurde erfolgreich hochgeladen.')
 
 		# now move the file and save an backup. Also delete the older one.
 		self.moveAndDeleteVPlanFile(absFile)
