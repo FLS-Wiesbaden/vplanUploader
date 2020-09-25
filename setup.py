@@ -47,7 +47,7 @@ if sys.platform == 'win32':
 		files.append((f, 'imageformats\\' + os.path.basename(f)))
 
 # DEFAULT VALUES
-setupVersion = "4.29"
+setupVersion = "4.30"
 setupDescription = "Vertretungsplaner Client"
 setupPublisher = 'Friedrich-List-Schule Wiesbaden'
 setupPublisherMail = 'website-team@fls-wiesbaden.de'
