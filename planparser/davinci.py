@@ -521,11 +521,11 @@ class DavinciJsonParser(BasicParser):
 
 			# subject of course
 			try:
-				subject = les['subjectCode']
+				newEntry._subject = les['subjectCode']
 			except KeyError as e:
 				# maybe its an additional lesson...?
 				if 'lessonTitle' in les['changes'].keys():
-					subject = les['changes']['lessonTitle']
+					newEntry._subject = les['changes']['lessonTitle']
 				else:
 					# is it allowed, if the reasonType == classAbsence!
 					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
@@ -535,7 +535,6 @@ class DavinciJsonParser(BasicParser):
 						)
 						noSkipped += 1
 						continue
-			newEntry._subject = subject
 
 			# new subject?
 			if 'newSubjectCode' in les['changes'].keys():
@@ -544,13 +543,13 @@ class DavinciJsonParser(BasicParser):
 			# the teacher (strange that it is a list)
 			try:
 				for t in les['teacherCodes']:
-					teacher = t
+					newEntry._teacher = t
 					break
 			except KeyError as e:
 				# OK.. lets extract by "absentTeacherCodes" if possible.
 				try:
 					for t in les['changes']['absentTeacherCodes']:
-						teacher = t
+						newEntry._teacher = t
 						break
 				except KeyError as e:
 					# is it allowed, if the reasonType == classAbsence!
@@ -559,7 +558,6 @@ class DavinciJsonParser(BasicParser):
 						self._errorDialog.addWarning('Could not found "teacherCodes" (teacher) in record - skipping!')
 						noSkipped += 1
 						continue
-			newEntry._teacher = teacher
 			
 			# new teacher?
 			if 'newTeacherCodes' in les['changes'].keys():
@@ -575,7 +573,7 @@ class DavinciJsonParser(BasicParser):
 			# Room (we also consider here only the first)
 			try:
 				for r in les['roomCodes']:
-					room = r
+					newEntry._room = r
 					break
 			except KeyError as e:
 				# is it allowed, if the reasonType == classAbsence!
@@ -584,7 +582,6 @@ class DavinciJsonParser(BasicParser):
 					self._errorDialog.addWarning('Could not found "roomCodes" (room) in record - skipping!')
 					noSkipped += 1
 					continue
-			newEntry._room = room
 
 			# new room?
 			if 'newRoomCodes' in les['changes'].keys():
@@ -688,19 +685,6 @@ class DavinciJsonParser(BasicParser):
 
 				self._errorDialog.addData(pprint.pformat(les))
 				self._errorDialog.addInfo('Found something to guess!')
-
-				# does it already exist there?
-				for e in data['plan']:
-					if entry['date'] == entryDates[0] \
-					 and entry['hour'] == hour \
-					 and entry['course'] == courses[0]:
-						# found an entry.
-						newEntry._teacher = entry['teacher']
-						newEntry._room = entry['room']
-						if newEntry._subject == '':
-							newEntry._subject = entry['subject']
-						newEntry._chgType = 0
-						break
 			
 			# in certain situation it may happen, that we misinterpret some data and 
 			# that the standin found does not contain any changes. This is strange and should be
