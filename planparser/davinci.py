@@ -10,6 +10,7 @@ import json
 import pprint
 import re
 import hashlib
+import datetime
 from codecs import BOM_UTF8
 from planparser.basic import BasicParser, ChangeEntry
 
@@ -17,12 +18,18 @@ class SchoolClassList(object):
 
 	def __init__(self):
 		self._list = []
+		self._idx = {}
 
 	def append(self, cl):
 		self._list.append(cl)
+		self._idx[cl.getAbbreviation()] = cl
 
 	def remove(self, cl):
 		self._list.remove(cl)
+		try:
+			del(self._idx[cl.getAbbreviation()])
+		except:
+			pass
 
 	def findClassById(self, cId):
 		for f in self._list:
@@ -32,14 +39,13 @@ class SchoolClassList(object):
 		return None
 
 	def findClassByAbbreviation(self, abbrev):
-		for f in self._list:
-			if f.getAbbreviation() == abbrev:
-				return f
-
-		return None
+		try:
+			return self._idx[abbrev]
+		except KeyError:
+			return None
 
 	def getList(self):
-		return [cl.getAbbreviation() for cl in self._list]
+		return list(self._idx.keys())
 
 class SchoolClass(object):
 
@@ -47,9 +53,13 @@ class SchoolClass(object):
 		self._id = classId
 		self._abbreviation = abbrev
 		self._team = None
+		self._description = None
 
 	def setTeam(self, team):
 		self._team = team
+
+	def setDescription(self, desc):
+		self._description = desc
 
 	def getAbbreviation(self):
 		return self._abbreviation
@@ -210,7 +220,6 @@ class TimeEntry(object):
 		self._startTime = start
 		self._endTime = end
 
-	
 	def __str__(self):
 		return self.__repr__()
 
@@ -224,6 +233,44 @@ class TimeEntry(object):
 			'end': self._endTime
 		}
 
+class ClassAbsentReason(object):
+
+	def __init__(self, code, id, description=None, color=None):
+		self._code = code
+		self._color = color
+		self._id = id
+		self._description = description
+
+	def getId(self):
+		return self._id
+
+	def getDescription(self):
+		return self._description
+
+	def __str__(self):
+		return self.__repr__()
+
+	def __repr__(self) -> str:
+		return '<ClassAbsentReason: %s to %s>' % (self._code, self._id)
+
+	def serialize(self):
+		return {
+			'code': self._code,
+			'color': self._color,
+			'id': self._id,
+			'description': self._description
+		}
+
+	@classmethod
+	def fromJson(cls, data):
+		self = cls(
+			data['code'],
+			data['id'],
+			data['description'] if 'description' in data.keys() else None,
+			data['color'] if 'color' in data.keys() else None
+		)
+		return self
+
 class DavinciJsonParser(BasicParser):
 
 	def __init__(self, config, errorDialog, parsingFile):
@@ -233,6 +280,7 @@ class DavinciJsonParser(BasicParser):
 		self._absentClasses = []
 		self._absentTeacher = []
 		self._supervision = []
+		self._absentDetails = {}
 		self._classList = SchoolClassList()
 		self._teacherList = TeacherList()
 		self._subjectList = SubjectList()
@@ -241,6 +289,7 @@ class DavinciJsonParser(BasicParser):
 		# Master data.
 		self._timeFramesPupil = Timetable()
 		self._timeFramesDuty = Timetable()
+		self._classAbsentReasons = {}
 		self._teams = {}
 
 		# With the json interface of DaVinci 6, we support mostly all features.
@@ -290,6 +339,8 @@ class DavinciJsonParser(BasicParser):
 		# build the class list
 		for tf in self._fileContent['result']['classes']:
 			schoolClass = SchoolClass(tf['id'], tf['code'])
+			if 'description' in tf.keys():
+				schoolClass.setDescription(tf['description'])
 			if 'teamRefs' in tf:
 				for tr in tf['teamRefs']:
 					if len(tr) > 0:
@@ -323,42 +374,70 @@ class DavinciJsonParser(BasicParser):
 					elif tf['code'] == 'Aufsichten':
 						self._timeFramesDuty.append(te)
 
+		# class absent reason
+		if 'classAbsenceReasons' in self._fileContent['result'].keys():
+			for tf in self._fileContent['result']['classAbsenceReasons']:
+				self._classAbsentReasons[tf['code']] = ClassAbsentReason.fromJson(tf)
+
 	def parseAbsentClasses(self):
 		# first find the absent classes
-		if 'classAbsences' not in self._fileContent.keys():
+		if 'classAbsences' not in self._fileContent['result'].keys():
 			return
 
 		for les in self._fileContent['result']['classAbsences']:
-			if les['startDate'] != les['endDate']:
-				self._errorDialog.addDebug(
-					'Don\'t support different starting and ending date - skipping!',
-					pprint.pformat(les)
-				)
-			elif les['startTime'] != '0000' or les['endTime'] != '0000':
+			# save for later.
+			hashKey = '{}{}'.format(
+				les['classRef'], les['reasonRef']
+			)
+			if hashKey not in self._absentDetails.keys():
+				self._absentDetails[hashKey] = [les]
+			else:
+				self._absentDetails[hashKey].append(les)
+			# we do not support separate absent classes here for a 
+			# time period less than a day.
+			if les['startTime'] != '0000' or les['endTime'] != '0000':
 				self._errorDialog.addDebug(
 					'Don\'t support start/end time for absent classes - skipping!',
 					pprint.pformat(les)
 				)
 			else:
-				entryDate = '%s.%s.%s' % (
-					les['startDate'][6:],
-					les['startDate'][4:6],
-					les['startDate'][:4]
+				# iterate through dates
+				absentStart = datetime.datetime.strptime(
+					'{}{}'.format(les['startDate'], les['startTime']), 
+					'%Y%m%d%H%M'
+				)
+				absentEnd = datetime.datetime.strptime(
+					'{}{}'.format(les['startDate'], les['startTime']), 
+					'%Y%m%d%H%M'
 				)
 
-				self._planType = self._planType | BasicParser.PLAN_CANCELED
-				newEntry = ChangeEntry([entryDate], 2, None)
-				newEntry._hours = [0]
-				newEntry._startTime = '00:00:00'
-				newEntry._endTime = '23:59:59'
-				course = self._classList.findClassById(les['classRef'])
-				if course is None:
-					self.dlg.addData(pprint.pformat(les))
-					self.dlg.addError('Course unknown for absent course - skipping!')
-					continue
+				while absentStart <= absentEnd:
+					entryDate = absentStart.strftime('%d.%m.%Y')
 
-				newEntry._course = [course]
-				self._absentClasses.append(newEntry)
+					self._planType = self._planType | BasicParser.PLAN_CANCELED
+					newEntry = ChangeEntry([entryDate], 2, None)
+					newEntry._hours = [{
+						'hour': 0,
+						'start': '000000',
+						'end': '235959'
+					}]
+					newEntry._startTime = '00:00:00'
+					newEntry._endTime = '23:59:59'
+					course = self._classList.findClassById(les['classRef'])
+					if course is None:
+						self.dlg.addData(pprint.pformat(les))
+						self.dlg.addError('Course unknown for absent course - skipping!')
+						continue
+
+					newEntry._course = [course]
+					newEntry._reasonRef = les['reasonRef']
+					try:
+						newEntry._note = les['note']
+					except:
+						pass
+					self._absentClasses.append(newEntry)
+
+					absentStart += datetime.timedelta(days=1)
 
 	def parseAbsentTeachers(self):
 		# find the absent teachers.
@@ -366,36 +445,49 @@ class DavinciJsonParser(BasicParser):
 			return
 
 		for les in self._fileContent['result']['teacherAbsences']:
-			if les['startDate'] != les['endDate']:
-				self._errorDialog.addDebug(
-					'Don\'t support different starting and ending date - skipping!',
-					pprint.pformat(les)
-				)
-			elif les['startTime'] != '0000' or les['endTime'] != '0000':
+			if les['startTime'] != '0000' or les['endTime'] != '0000':
 				self._errorDialog.addDebug(
 					'Don\'t support start/end time for absent classes - skipping!',
 					pprint.pformat(les)
 				)
 			else:
-				entryDate = '%s.%s.%s' % (
-					les['startDate'][6:],
-					les['startDate'][4:6],
-					les['startDate'][:4]
+				# iterate through dates
+				absentStart = datetime.datetime.strptime(
+					'{}{}'.format(les['startDate'], les['startTime']), 
+					'%Y%m%d%H%M'
+				)
+				absentEnd = datetime.datetime.strptime(
+					'{}{}'.format(les['startDate'], les['startTime']), 
+					'%Y%m%d%H%M'
 				)
 
-				self._planType = self._planType | BasicParser.PLAN_OUTTEACHER
-				newEntry = ChangeEntry([entryDate], 8, None)
-				newEntry._hours = [0]
-				newEntry._startTime = '00:00:00'
-				newEntry._endTime = '23:59:59'
-				teacher = self._teacherList.findById(les['teacherRef'])
-				if teacher is None:
-					self.dlg.addData(pprint.pformat(les))
-					self.dlg.addError('Teacher unknown for absent teachers - skipping!')
-					continue
+				while absentStart <= absentEnd:
+					entryDate = absentStart.strftime('%d.%m.%Y')
 
-				newEntry._teacher = teacher
-				self._absentTeacher.append(newEntry)
+					self._planType = self._planType | BasicParser.PLAN_OUTTEACHER
+					newEntry = ChangeEntry([entryDate], 8, None)
+					newEntry._hours = [{
+						'hour': 0,
+						'start': '000000',
+						'end': '235959'
+					}]
+					newEntry._startTime = '00:00:00'
+					newEntry._endTime = '23:59:59'
+					teacher = self._teacherList.findById(les['teacherRef'])
+					if teacher is None:
+						self.dlg.addData(pprint.pformat(les))
+						self.dlg.addError('Teacher unknown for absent teachers - skipping!')
+						continue
+
+					newEntry._teacher = teacher
+					newEntry._reasonRef = les['reasonRef']
+					try:
+						newEntry._note = les['note']
+					except:
+						pass
+					self._absentTeacher.append(newEntry)
+
+					absentStart += datetime.timedelta(days=1)
 
 	def parseStandin(self):
 		# some patterns (better don't ask which possibilities we have).
@@ -513,19 +605,29 @@ class DavinciJsonParser(BasicParser):
 			# in case, there is a special note, we need to inform about the classAbsence reason!
 			if 'reasonType' in les['changes'].keys() and les['changes']['reasonType'] in ['classAbsence', 'classFree'] \
 				and 'information' not in les['changes'].keys() and 'reasonCode' in les['changes'].keys():
-				if 'classAbsenceReasons' in self._fileContent['result'].keys():
-					for reason in self._fileContent['result']['classAbsenceReasons']:
-						if reason['code'] == les['changes']['reasonCode'] and 'description' in reason.keys():
-							les['changes']['information'] = reason['description']
-							break
+				try:
+					absentReasonObj = self._classAbsentReasons[les['changes']['reasonCode']]
+				except KeyError:
+					pass
+				else:
+					if absentReasonObj.getDescription():
+						les['changes']['information'] = absentReasonObj.getDescription()
+					elif les['classCodes']:
+						# last try, through the details.
+						# get first class code
+						classObj = self._classList.findClassByAbbreviation(les['classCodes'][0])
+						if classObj and not newEntry._note:
+							reason = self.findAbsentReason(classObj.getId(), absentReasonObj.getId(), les)
+							if reason:
+								newEntry._note = reason
 
 			# subject of course
 			try:
-				subject = les['subjectCode']
+				newEntry._subject = les['subjectCode']
 			except KeyError as e:
 				# maybe its an additional lesson...?
 				if 'lessonTitle' in les['changes'].keys():
-					subject = les['changes']['lessonTitle']
+					newEntry._subject = les['changes']['lessonTitle']
 				else:
 					# is it allowed, if the reasonType == classAbsence!
 					if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
@@ -535,7 +637,6 @@ class DavinciJsonParser(BasicParser):
 						)
 						noSkipped += 1
 						continue
-			newEntry._subject = subject
 
 			# new subject?
 			if 'newSubjectCode' in les['changes'].keys():
@@ -544,13 +645,13 @@ class DavinciJsonParser(BasicParser):
 			# the teacher (strange that it is a list)
 			try:
 				for t in les['teacherCodes']:
-					teacher = t
+					newEntry._teacher = t
 					break
 			except KeyError as e:
 				# OK.. lets extract by "absentTeacherCodes" if possible.
 				try:
 					for t in les['changes']['absentTeacherCodes']:
-						teacher = t
+						newEntry._teacher = t
 						break
 				except KeyError as e:
 					# is it allowed, if the reasonType == classAbsence!
@@ -559,7 +660,6 @@ class DavinciJsonParser(BasicParser):
 						self._errorDialog.addWarning('Could not found "teacherCodes" (teacher) in record - skipping!')
 						noSkipped += 1
 						continue
-			newEntry._teacher = teacher
 			
 			# new teacher?
 			if 'newTeacherCodes' in les['changes'].keys():
@@ -575,7 +675,7 @@ class DavinciJsonParser(BasicParser):
 			# Room (we also consider here only the first)
 			try:
 				for r in les['roomCodes']:
-					room = r
+					newEntry._room = r
 					break
 			except KeyError as e:
 				# is it allowed, if the reasonType == classAbsence!
@@ -584,7 +684,6 @@ class DavinciJsonParser(BasicParser):
 					self._errorDialog.addWarning('Could not found "roomCodes" (room) in record - skipping!')
 					noSkipped += 1
 					continue
-			newEntry._room = room
 
 			# new room?
 			if 'newRoomCodes' in les['changes'].keys():
@@ -688,19 +787,6 @@ class DavinciJsonParser(BasicParser):
 
 				self._errorDialog.addData(pprint.pformat(les))
 				self._errorDialog.addInfo('Found something to guess!')
-
-				# does it already exist there?
-				for e in data['plan']:
-					if entry['date'] == entryDates[0] \
-					 and entry['hour'] == hour \
-					 and entry['course'] == courses[0]:
-						# found an entry.
-						newEntry._teacher = entry['teacher']
-						newEntry._room = entry['room']
-						if newEntry._subject == '':
-							newEntry._subject = entry['subject']
-						newEntry._chgType = 0
-						break
 			
 			# in certain situation it may happen, that we misinterpret some data and 
 			# that the standin found does not contain any changes. This is strange and should be
@@ -722,6 +808,30 @@ class DavinciJsonParser(BasicParser):
 			self._errorDialog.addInfo(
 				'Skipped {:d} entries as it seems there are superseeding entries!'.format(noSuperseeding)
 			)
+
+	def findAbsentReason(self, classId, reasonRef, les):
+		hashKey = '{}{}'.format(classId, reasonRef)
+		try:
+			classAbsentDetail = self._absentDetails[hashKey]
+		except KeyError:
+			pass
+		else:
+			for abs in classAbsentDetail:
+				startDateAbsent = datetime.datetime.strptime(
+					'{}{}'.format(abs['startDate'], abs['startTime']), '%Y%m%d%H%M'
+				)
+				endDateAbsent = datetime.datetime.strptime(
+					'{}{}'.format(abs['endDate'], abs['endTime']), '%Y%m%d%H%M'
+				)
+				# get first date entry from standin
+				chkDate = datetime.datetime.strptime(
+					'{}{}'.format(les['dates'][0], les['startTime']), '%Y%m%d%H%M'
+				)
+				if chkDate >= startDateAbsent and chkDate <= endDateAbsent:
+					if 'note' in abs:
+						return abs['note']
+
+		return None
 
 	def parseYardDuty(self):
 		# find the absent teachers.

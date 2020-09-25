@@ -16,3 +16,4 @@ __pycache__
 logo.ico
 /results
 config.ini.*
+.vscode/
