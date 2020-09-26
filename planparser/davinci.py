@@ -11,6 +11,7 @@ import pprint
 import re
 import hashlib
 import datetime
+import sentry_sdk
 from codecs import BOM_UTF8
 from planparser.basic import BasicParser, ChangeEntry
 
@@ -297,7 +298,7 @@ class DavinciJsonParser(BasicParser):
 		self._planType = self._planType | BasicParser.PLAN_CANCELED | BasicParser.PLAN_FILLIN
 		self._planType = self._planType | BasicParser.PLAN_OUTTEACHER | BasicParser.PLAN_YARDDUTY
 
-	def preParse(self):
+	def preParse(self, transaction=None):
 		if self._config.has_option('parser-davinci', 'encoding'):
 			self._encoding = self._config.get('parser-davinci', 'encoding')
 		elif self._encoding is None:
@@ -315,15 +316,21 @@ class DavinciJsonParser(BasicParser):
 		self._stand = int(time.time())
 		self.planParserPrepared.emit()
 
-	def parse(self):
+	def parse(self, transaction=None):
 		planParsedSuccessful = True
 		try:
-			self.parseMasterData()
-			self.parseAbsentClasses()
-			self.parseAbsentTeachers()
-			self.parseStandin()
+			with transaction.start_child(op='parse::davinci::parseMasterData'):
+				self.parseMasterData()
+			
+			with transaction.start_child(op='parse::davinci::parseAbsentClasses'):
+				self.parseAbsentClasses()
+			with transaction.start_child(op='parse::davinci::parseAbsentTeachers'):
+				self.parseAbsentTeachers()
+			with transaction.start_child(op='parse::davinci::parseStandin'):
+				self.parseStandin()
 			if 'supervisionTimes' in self._fileContent['result']['displaySchedule'].keys():
-				self.parseYardDuty()
+				with transaction.start_child(op='parse::davinci::parseYardDuty'):
+					self.parseYardDuty()
 		except Exception as e:
 			self._errorDialog.addError('Could not parse the plan. Unexpected error occured: %s.' % (str(e),))
 			planParsedSuccessful = False
@@ -407,7 +414,7 @@ class DavinciJsonParser(BasicParser):
 					'%Y%m%d%H%M'
 				)
 				absentEnd = datetime.datetime.strptime(
-					'{}{}'.format(les['startDate'], les['startTime']), 
+					'{}{}'.format(les['endDate'], les['startTime']), 
 					'%Y%m%d%H%M'
 				)
 
@@ -457,7 +464,7 @@ class DavinciJsonParser(BasicParser):
 					'%Y%m%d%H%M'
 				)
 				absentEnd = datetime.datetime.strptime(
-					'{}{}'.format(les['startDate'], les['startTime']), 
+					'{}{}'.format(les['endDate'], les['startTime']), 
 					'%Y%m%d%H%M'
 				)
 
@@ -886,7 +893,7 @@ class DavinciJsonParser(BasicParser):
 				newEntry._changeTeacher = newTeacher
 				self._supervision.append(newEntry)
 
-	def getResult(self):
+	def getResult(self, transaction=None):
 		planEntries = []
 		planObjects = self._absentClasses + self._absentTeacher + self._supervision + self._standin
 		for f in planObjects:

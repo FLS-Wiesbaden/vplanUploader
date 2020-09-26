@@ -29,12 +29,12 @@ class BasicParser(QObject):
 		self._planType = 0
 		self._encoding = None
 
-	def loadFile(self, encoding=None):
+	def loadFile(self, transaction=None, encoding=None):
 		try:
 			with open(self._parsingFile, 'rb') as f:
 				self._fileContent = f.read()
 		except Exception as e:
-			if hasattr(self, _errorDialog):
+			if hasattr(self, '_errorDialog'):
 				self._errorDialog.addError(
 					'Could not parse the new plan with path %s because of %s' % (
 						self._parsingFile, str(e)
@@ -45,22 +45,22 @@ class BasicParser(QObject):
 
 		#self.planFileLoaded.emit()
 
-	def preParse(self):
+	def preParse(self, transaction=None):
 		self.planParserPrepared.emit()
 		pass
 
-	def parse(self):
+	def parse(self, transaction=None):
 		self.planParsed(True)
 		pass
 
-	def postParse(self):
+	def postParse(self, transaction=None):
 		pass
 
-	def getResult(self):
+	def getResult(self, transaction=None):
 		pass
 
 	def hasErrors(self):
-		if hasattr(self, _errorDialog):
+		if hasattr(self, '_errorDialog'):
 			return self._errorDialog.hasData
 		else:
 			return False

@@ -10,6 +10,16 @@ enable: False
 username: flsadmin
 password: na
 
+[sentry]
+enable: False
+sendsn: 
+maxBreadcrumbs: 50
+debug: False
+pii: False
+sampleRate: 1.0
+tracesSampleRate: 1.0
+environment: production
+
 [parser-davinci]
 encoding = utf-8
 

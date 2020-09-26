@@ -20,7 +20,7 @@ class FlsCsvParser(BasicParser):
 		self._planRows = []
 		self._planType = self._planType | BasicParser.PLAN_ADDITIONAL
 
-	def loadFile(self):
+	def loadFile(self, transaction=None):
 		if self._config.has_option('parser-fls', 'encoding'):
 			self._encoding = self._config.get('parser-fls', 'encoding')
 		elif self._encoding is None:
@@ -33,11 +33,11 @@ class FlsCsvParser(BasicParser):
 			self._fileContent.append(row)
 		f.close()
 
-	def preParse(self):
+	def preParse(self, transaction=None):
 		self._stand = int(time.time())
 		self.planParserPrepared.emit()
 
-	def parse(self):
+	def parse(self, transaction=None):
 		planParsedSuccessful = True
 		try:
 			for row in self._fileContent:
@@ -86,7 +86,7 @@ class FlsCsvParser(BasicParser):
 		finally:
 			self.planParsed.emit(planParsedSuccessful)
 
-	def getResult(self):
+	def getResult(self, transaction=None):
 		planEntries = []
 		for f in self._plan:
 			planEntries.extend(f.asDict())

@@ -1,3 +1,4 @@
 PyQt5
 cx_Freeze
 requests
+sentry-sdk
