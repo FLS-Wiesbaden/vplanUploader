@@ -8,7 +8,7 @@ standin plans for the FLS Wiesbaden framework.
 """
 
 __all__ = []
-__version__ = '4.30'
+__version__ = '4.31'
 __author__ = 'Lukas Schreiner'
 
 import urllib.parse
@@ -33,6 +33,8 @@ from searchplaner import SearchPlaner
 from errorlog import ErrorDialog
 from planparser.fls import FlsCsvParser
 from planparser.davinci import DavinciJsonParser
+import sentry_sdk
+
 # absolute hack, but required for cx_Freeze to work properly.
 if sys.platform == 'win32':
 	import PyQt5.sip
@@ -80,7 +82,7 @@ class Vertretungsplaner(QObject):
 		return float(self.config.get("default", "intervall"))
 
 	def isProxyEnabled(self):
-		return self.config.get('proxy', 'enable') == 'True' or self.config.get('proxy', 'enable') is True
+		return self.config.getboolean('proxy', 'enable', fallback=False)
 
 	def getRun(self):
 		return self.run
@@ -128,24 +130,38 @@ class Vertretungsplaner(QObject):
 			print("\nChanged/Added new Files: ", ", ".join(todo))
 			for f in todo:
 				f = f.strip()
-				execFound = False
+				handler = None
 				if self.config.get('vplan', 'type') == 'daVinci':
 					if int(self.config.get('vplan', 'version')) == 6:
 						if f.lower().endswith('.csv'):
-							execFound = True
-							try:
-								self.handlingFlsCSV(f)
-							except:
-								pass
+							handler = FlsCsvParser
 						elif f.lower().endswith('.json'):
-							execFound = True
-							# As we have an error dialog here, do not send in background!
-							#Thread(target=self.handlingDavinciJson, args=(f,)).start()
-							try:
-								self.handlingDavinciJson(f)
-							except:
-								pass
-				elif not execFound:
+							handler = DavinciJsonParser
+				
+				if handler:
+					transName = '{}_{}_{}'.format(
+						datetime.now().strftime('%Y-%m-%dT%H%M%S'),
+						self.config.get('sentry', 'transPrefix', fallback='n'),
+						f.replace(' ', '_')
+					)
+					with sentry_sdk.start_transaction(op='parseUploadPlan', name=transName) as transaction:
+						try:
+							self.parsePlanByHandler(transaction, handler, f)
+						except Exception as e:
+							sentry_sdk.capture_exception(e)
+							self.showError(
+								'Neuer Vertretungsplan', 
+								'Vertretungsplan konnte nicht verarbeitet \
+								werden,	weil die Datei fehlerhaft ist.'
+							)
+							print('Error: %s' % (str(e),))
+							traceback.print_exc()
+							self.dlg.addError(str(e))
+							self.showDlg.emit()
+							raise
+					print('Ending transaction {}'.format(transName))
+					transaction.finish()
+				else:
 					print('"%s" will be ignored.' % (f,))
 
 		if removed:
@@ -168,7 +184,7 @@ class Vertretungsplaner(QObject):
 		# Now start Looping
 		self.search = Thread(target=SearchPlaner, args=(self,)).start()
 
-	def sendPlan(self, table, absFile, planType='all'):
+	def sendPlan(self, transaction, table, absFile, planType='all'):
 		data = json.dumps(table).encode('utf-8')
 		# check what we need to do.
 		# 1st we need to save the data?
@@ -203,8 +219,11 @@ class Vertretungsplaner(QObject):
 					"http" : httpproxy,
 					"https": httpproxy
 				}
+				transaction.set_data('http.proxy_uri', httpproxy)
+				transaction.set_tag('http.proxy', True)
 			else:
 				print('Proxy is deactivated')
+				transaction.set_tag('http.proxy', False)
 			
 			headers = {}
 			httpauth = None
@@ -213,6 +232,9 @@ class Vertretungsplaner(QObject):
 					self.config.get('siteauth', 'username'),
 					self.config.get('siteauth', 'password')
 				)
+				transaction.set_tag('http.basic_auth', True)
+			else:
+				transaction.set_tag('http.basic_auth', False)
 
 			# add post info
 			headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=utf-8'
@@ -231,6 +253,7 @@ class Vertretungsplaner(QObject):
 				)
 				errObj = err
 				print('HTTP-Fehler aufgetreten: {:s}'.format(str(err)))
+				sentry_sdk.capture_exception(err)
 			except urllib.error.URLError as err:
 				self.createCoreDump(err)
 				errorMessasge = (
@@ -240,6 +263,7 @@ class Vertretungsplaner(QObject):
 				)
 				errObj = err
 				print('URL-Fehler aufgetreten: {:s}'.format(err.reason))
+				sentry_sdk.capture_exception(err)
 			except Exception as err:
 				self.createCoreDump(err)
 				errorMessage = (
@@ -249,7 +273,10 @@ class Vertretungsplaner(QObject):
 				)
 				errObj = err
 				print("Unbekannter Fehler aufgetreten: ", err)
+				sentry_sdk.capture_exception(err)
 			else:
+				transaction.set_tag('http.status_code', req.status_code)
+				transaction.set_data('http.text', req.text)
 				if req.status_code != 204:
 					errorMessage = (
 						'Warnung',
@@ -263,6 +290,7 @@ class Vertretungsplaner(QObject):
 			
 			# any error to show in detail to user?
 			if errorMessage:
+				transaction.set_data('vplan.send_error', errorMessage)
 				if errObj:
 					self.dlg.addData(str(errObj))
 				self.showError(*errorMessage)
@@ -349,66 +377,35 @@ class Vertretungsplaner(QObject):
 
 		self.lastFile = newFile
 
-	def handlingFlsCSV(self, fileName):
+	def parsePlanByHandler(self, transaction, hdl, fileName):
 		# send a notification
 		self.showInfo('Neuer Vertretungsplan', 'Es wurde eine neue Datei gefunden und wird jetzt verarbeitet.')
 		absPath = os.path.join(self.config.get('default', 'path'), fileName)
+		djp = hdl(self.config, self.dlg, absPath)
+		djp.planFileLoaded.connect(self.planFileLoaded)
+		djp.planParserPrepared.connect(self.planParserPrepared)
+		with transaction.start_child(op='parse::loadFile', description=fileName) as transChild:
+			djp.loadFile(transChild)
+		
+		with transaction.start_child(op='parse::preParse', description=fileName):
+			djp.preParse(transChild)
 
-		try:
-			djp = FlsCsvParser(self.config, self.dlg, absPath)
-			djp.planFileLoaded.connect(self.planFileLoaded)
-			djp.planParserPrepared.connect(self.planParserPrepared)
-			djp.loadFile()
-			djp.preParse()
-			djp.parse()
-			djp.postParse()
-			data = djp.getResult()
-			self.showInfo('Neuer Vertretungsplan', 'Vertretungsplan wurde verarbeitet und wird nun hochgeladen.')
-			self.sendPlan(data, absPath)
-		except Exception as e:
-			self.showError(
-				'Neuer Vertretungsplan', 'Vertretungsplan konnte nicht verarbeitet werden, \
-				weil die Datei fehlerhaft ist.'
-			)
-			print('Error: %s' % (str(e),))
-			traceback.print_exc()
-			self.dlg.addError(str(e))
-			self.showDlg.emit()
-			raise
+		with transaction.start_child(op='parse::parse', description=fileName):
+			djp.parse(transChild)
+		
+		with transaction.start_child(op='parse::postParse', description=fileName):
+			djp.postParse(transChild)
+		
+		data = djp.getResult()
+		data['system'] = {
+			'version': __version__,
+			'handler': hdl.__name__,
+			'fname': absPath
+		}
+		self.showInfo('Neuer Vertretungsplan', 'Vertretungsplan wurde verarbeitet und wird nun hochgeladen.')
 
-		# something to show?
-		if self.dlg.hasData:
-			self.showDlg.emit()
-
-	def handlingDavinciJson(self, fileName):
-		# send a notification
-		self.showInfo(
-			'Neuer Vertretungsplan',
-			'Es wurde eine neue Datei gefunden und wird jetzt verarbeitet.'
-		)
-		absPath = os.path.join(self.config.get('default', 'path'), fileName)
-
-		try:
-			djp = DavinciJsonParser(self.config, self.dlg, absPath)
-			djp.planFileLoaded.connect(self.planFileLoaded)
-			djp.planParserPrepared.connect(self.planParserPrepared)
-			djp.loadFile()
-			djp.preParse()
-			djp.parse()
-			djp.postParse()
-			data = djp.getResult()
-			self.showInfo('Neuer Vertretungsplan', 'Vertretungsplan wurde verarbeitet und wird nun hochgeladen.')
-			self.sendPlan(data, absPath)
-		except Exception as e:
-			self.showError(
-				'Neuer Vertretungsplan',
-				'Vertretungsplan konnte nicht verarbeitet werden, weil die Datei fehlerhaft ist.'
-			)
-			print('Error: %s' % (str(e),))
-			traceback.print_exc()
-			self.dlg.addError(str(e))
-			self.showDlg.emit()
-			raise
+		with transaction.start_child(op='parse::sendPlan', description=fileName):
+			self.sendPlan(transChild, data, absPath)
 
 		# something to show?
 		if self.dlg.hasData:
@@ -449,6 +446,41 @@ class Vertretungsplaner(QObject):
 			'Bei Problemen wenden Sie sich bitte an das Website-Team der Friedrich-List-Schule Wiesbaden.'
 		)
 
+	def initSentry(self):
+		# check if sentry is enabled.
+		if not self.config.getboolean('sentry', 'enable', fallback=False) \
+			or not self.config.get('sentry', 'sendsn', fallback=None):
+			return
+
+		try:
+			import sentry_sdk
+		except:
+			pass
+		else:
+			# proxy settings?
+			if self.isProxyEnabled():
+				httpproxy = "http://"+self.config.get("proxy", "phost")+":"+self.config.get("proxy", "pport")
+			else:
+				httpproxy = None
+
+			def logSentrySend(event, hint):
+				print('Now sending sentry data!!!')
+
+			sentry_sdk.init(
+				self.config.get('sentry', 'sendsn'),
+				max_breadcrumbs=self.config.getint('sentry', 'maxBreadcrumbs', fallback=50),
+				debug=self.config.getboolean('sentry', 'debug', fallback=False),
+				send_default_pii=self.config.getboolean('sentry', 'pii', fallback=False),
+				environment=self.config.get('sentry', 'environment', fallback=None),
+				sample_rate=self.config.getfloat('sentry', 'sampleRate', fallback=1.0),
+				traces_sample_rate=self.config.getfloat('sentry', 'tracesSampleRate', fallback=1.0),
+				http_proxy=httpproxy,
+				https_proxy=httpproxy,
+				before_send=logSentrySend,
+				release=__version__
+			)
+			self._sentryEnabled = True
+
 	def __init__(self):
 		super().__init__()
 
@@ -459,17 +491,13 @@ class Vertretungsplaner(QObject):
 		self.search = None
 		self.before = None
 		self.locked = False
+		self._sentryEnabled = False
 
 		self.loadConfig()
+		self.initSentry()
 		self.initTray()
 
-		debugLog = False
-		try:
-			debugLog = self.config.getboolean('options', 'debugLogs')
-		except KeyError:
-			pass
-		except configparser.NoOptionError:
-			pass
+		debugLog = self.config.getboolean('options', 'debugLogs', fallback=False)
 
 		self.dlg = ErrorDialog(debugLog)
 		self.showDlg.connect(self.dlg.open)
