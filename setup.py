@@ -26,8 +26,6 @@ def addToZip(zipFile, p):
 files = [
 	os.path.join(scriptDir, 'config.ini.sample'),
 ]
-if os.path.exists(os.path.join(scriptDir, 'config.ini')):
-	files.append(os.path.join(scriptDir, 'config.ini'))
 
 # really dirty hack for Windows Server
 if sys.platform == 'win32':
@@ -47,7 +45,7 @@ if sys.platform == 'win32':
 		files.append((f, 'imageformats\\' + os.path.basename(f)))
 
 # DEFAULT VALUES
-setupVersion = "4.31"
+setupVersion = "4.32"
 setupDescription = "Vertretungsplaner Client"
 setupPublisher = 'Friedrich-List-Schule Wiesbaden'
 setupPublisherMail = 'website-team@fls-wiesbaden.de'
@@ -72,6 +70,22 @@ elif variant == 'sds':
 	setupGuid = '7CE997E4-8D0A-4406-A3EA-F48CAB29F4A9'
 setupIco = os.path.join(scriptDir, 'pixmaps', setupSrcIco)
 files.append((setupIco, 'logo.ico'))
+
+# check and add destination configuration (preconfigured version)
+ciConfigFile = None
+if os.path.exists(os.path.join(scriptDir, 'config.ini')):
+	ciConfigFile = os.path.join(scriptDir, 'config.ini')
+# Automatic jenkins build: any secret config based on variant?
+ciConfigFileName = 'vplanconfig_{}'.format(variant)
+try:
+	ciConfigFileTmp = os.environ[ciConfigFileName]
+	if os.path.exists(ciConfigFileTmp):
+		ciConfigFile = ciConfigFileTmp
+except KeyError:
+	print('Could not find: {}'.format(ciConfigFileName))
+finally:
+	if ciConfigFile:
+		files.append((ciConfigFile, 'config.ini'))
 
 base = None
 exeName = 'flsvplan'
