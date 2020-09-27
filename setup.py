@@ -45,7 +45,7 @@ if sys.platform == 'win32':
 		files.append((f, 'imageformats\\' + os.path.basename(f)))
 
 # DEFAULT VALUES
-setupVersion = "4.32"
+setupVersion = "4.33"
 setupDescription = "Vertretungsplaner Client"
 setupPublisher = 'Friedrich-List-Schule Wiesbaden'
 setupPublisherMail = 'website-team@fls-wiesbaden.de'
@@ -113,9 +113,17 @@ flsvplan_debug = Executable(
 
 buildOpts = {
 	'include_files': files,
-	'zip_include_packages': ['PyQt5.QtNetwork', 'PyQt5.sip', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets', 'PyQt5', 'sip'],
+	'zip_include_packages': [
+		'PyQt5.QtNetwork', 'PyQt5.sip', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets', 'PyQt5', 
+		'sip'
+	],
 	'include_msvcr': True,
-	'includes': ['queue'],
+	'includes': [
+		'queue', 'sentry_sdk.integrations.logging', 'sentry_sdk.integrations.stdlib', 
+		'sentry_sdk.integrations.excepthook', 'sentry_sdk.integrations.dedupe',
+		'sentry_sdk.integrations.atexit', 'sentry_sdk.integrations.modules', 
+		'sentry_sdk.integrations.argv', 'sentry_sdk.integrations.threading'
+	],
 	'build_exe': os.path.join(buildDir, 'vplan-{:s}'.format(setupVersion))
 }
 
@@ -150,13 +158,17 @@ if sys.platform == "win32":
 		appGuid=setupGuid
 	)
 	exeCmd = shlex.split(cmd)
-	p = subprocess.Popen(exeCmd)
-	p.communicate()
-	# copy setup file to build directory.
-	srcSetupFile = os.path.join(scriptDir, 'Output', setupName + '_' + setupVersion + '_setup.exe')
-	dstSetupFile = os.path.join(buildDir, setupName + '_' + setupVersion + '_setup.exe')
-	if os.path.exists(srcSetupFile):
-		shutil.copyfile(srcSetupFile, dstSetupFile)
+	try:
+		p = subprocess.Popen(exeCmd)
+	except FileNotFoundError:
+		sys.stderr.write('ISCC setup builder not supported here.' + os.linesep)
+	else:
+		p.communicate()
+		# copy setup file to build directory.
+		srcSetupFile = os.path.join(scriptDir, 'Output', setupName + '_' + setupVersion + '_setup.exe')
+		dstSetupFile = os.path.join(buildDir, setupName + '_' + setupVersion + '_setup.exe')
+		if os.path.exists(srcSetupFile):
+			shutil.copyfile(srcSetupFile, dstSetupFile)
 
 # create dist file.
 if not os.path.exists(distDir):
