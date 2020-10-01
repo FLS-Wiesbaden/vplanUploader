@@ -414,11 +414,11 @@ class DavinciJsonParser(BasicParser):
 					'%Y%m%d%H%M'
 				)
 				absentEnd = datetime.datetime.strptime(
-					'{}{}'.format(les['endDate'], les['startTime']), 
+					'{}{}'.format(les['endDate'], les['endTime']), 
 					'%Y%m%d%H%M'
 				)
 
-				while absentStart <= absentEnd:
+				while absentStart < absentEnd:
 					entryDate = absentStart.strftime('%d.%m.%Y')
 
 					self._planType = self._planType | BasicParser.PLAN_CANCELED
