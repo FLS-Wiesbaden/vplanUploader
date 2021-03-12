@@ -687,10 +687,12 @@ class DavinciJsonParser(BasicParser):
 			except KeyError as e:
 				# is it allowed, if the reasonType == classAbsence!
 				if 'reasonType' not in les['changes'].keys() or les['changes']['reasonType'] != 'classAbsence':
-					self._errorDialog.addData(pprint.pformat(les))
-					self._errorDialog.addWarning('Could not found "roomCodes" (room) in record - skipping!')
-					noSkipped += 1
-					continue
+					# in pandemic times, with much remote works, it is valid, that rooms are not present.
+					#self._errorDialog.addData(pprint.pformat(les))
+					#self._errorDialog.addWarning('Could not found "roomCodes" (room) in record - skipping!')
+					#noSkipped += 1
+					#continue
+					newEntry._room = ''
 
 			# new room?
 			if 'newRoomCodes' in les['changes'].keys():
