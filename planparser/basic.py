@@ -9,6 +9,15 @@
 from PyQt5.QtCore import QObject, pyqtSignal
 import json, uuid, hashlib
 
+class DuplicateItem(Exception):
+	pass
+
+class SuperseedingItem(Exception):
+	pass
+
+class SkippedItem(Exception):
+	pass
+
 class BasicParser(QObject):
 
 	planFileLoaded = pyqtSignal()
@@ -20,6 +29,7 @@ class BasicParser(QObject):
 	PLAN_YARDDUTY = 4
 	PLAN_OUTTEACHER = 8
 	PLAN_ADDITIONAL = 16
+	PLAN_REGULAR = 32
 
 	def __init__(self, config, parsingFile):
 		super().__init__()
@@ -67,6 +77,12 @@ class BasicParser(QObject):
 
 class ChangeEntry(object):
 
+	CHANGE_TYPE_CANCELLED = 1
+	CHANGE_TYPE_ROOM = 2
+	CHANGE_TYPE_TEACHER = 4
+	CHANGE_TYPE_SUBJECT = 8
+	CHANGE_TYPE_MOVED = 16
+	CHANGE_TYPE_MOVED_FROM = 32
 	CHANGE_TYPE_FREE = 64
 
 	def __init__(self, dates, planType, chgType = 0):
@@ -83,6 +99,7 @@ class ChangeEntry(object):
 		self._changeTeacher = None
 		self._changeSubject = None
 		self._changeRoom = None
+		self._courseRef = None
 		self._note = ''
 		self._info = ''
 
@@ -110,6 +127,7 @@ class ChangeEntry(object):
 						'hour': hour['hour'],
 						'starttime': self._startTime if hour['start'] is None else hour['start'],
 						'endtime': self._endTime if hour['end'] is None else hour['end'],
+						'courseRef': self._courseRef,
 						'teacher': str(self._teacher) if self._teacher is not None else None,
 						'subject': self._subject,
 						'room': self._room,
