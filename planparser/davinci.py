@@ -427,7 +427,7 @@ class DavinciJsonParser(BasicParser):
 					entryDate = absentStart.strftime('%d.%m.%Y')
 
 					self._planType = self._planType | BasicParser.PLAN_CANCELED
-					newEntry = ChangeEntry([entryDate], 2, None)
+					newEntry = ChangeEntry([entryDate], 2, ChangeEntry.CHANGE_TYPE_CANCELLED)
 					newEntry._hours = [{
 						'hour': 0,
 						'start': '000000',
@@ -477,7 +477,7 @@ class DavinciJsonParser(BasicParser):
 					entryDate = absentStart.strftime('%d.%m.%Y')
 
 					self._planType = self._planType | BasicParser.PLAN_OUTTEACHER
-					newEntry = ChangeEntry([entryDate], 8, None)
+					newEntry = ChangeEntry([entryDate], 8, ChangeEntry.CHANGE_TYPE_TEACHER_AWAY)
 					newEntry._hours = [{
 						'hour': 0,
 						'start': '000000',
@@ -513,17 +513,20 @@ class DavinciJsonParser(BasicParser):
 		# new subject?
 		if 'newSubjectCode' in les['changes'].keys():
 			newEntry._changeSubject = les['changes']['newSubjectCode']
+			newEntry._chgType |= ChangeEntry.CHANGE_TYPE_SUBJECT
 
 		# new teacher?
 		if 'newTeacherCodes' in les['changes'].keys():
 			for t in les['changes']['newTeacherCodes']:
 				newEntry._changeTeacher = t
+				newEntry._chgType |= ChangeEntry.CHANGE_TYPE_TEACHER
 				break
 
 		# new room?
 		if 'newRoomCodes' in les['changes'].keys():
 			for t in les['changes']['newRoomCodes']:
 				newEntry._changeRoom = t
+				newEntry._chgType |= ChangeEntry.CHANGE_TYPE_ROOM
 				break
 
 		# now check if the type is classAbsence. In that case, we need to switch to classFree, if the 
@@ -582,10 +585,10 @@ class DavinciJsonParser(BasicParser):
 						newEntry._info = ''
 						newEntry._note = self._config.get('vplan', 'txtMoved').format(weekday, hourtxt, int(day), int(month))
 
-				newEntry._chgType = ChangeEntry.CHANGE_TYPE_MOVED
+				newEntry._chgType |= ChangeEntry.CHANGE_TYPE_MOVED
 			# or the hour is just cancelled.
 			elif les['changes']['cancelled'] == 'classFree':
-				newEntry._chgType = ChangeEntry.CHANGE_TYPE_FREE
+				newEntry._chgType |= ChangeEntry.CHANGE_TYPE_FREE
 				# if the info + notes field is empty, lets populate the field by our own:
 				if len(newEntry._info) == 0 and len(newEntry._note) == 0:
 					newEntry._info = self._config.get('vplan', 'txtReplaceFree')
@@ -606,12 +609,12 @@ class DavinciJsonParser(BasicParser):
 				newEntry._note = self._config.get('vplan', 'txtMovedNote').format(
 					weekday, hourtxt, int(day), int(month)
 				)
-				newEntry._chgType = ChangeEntry.CHANGE_TYPE_MOVED_FROM
+				newEntry._chgType |= ChangeEntry.CHANGE_TYPE_MOVED_FROM
 
 		# if a change type is set to 6 = free and we do not have any
 		# change type defined yet, take it!
 		if not newEntry._chgType and 'changeType' in les['changes'] and les['changes']['changeType'] == 6:
-			newEntry._chgType = ChangeEntry.CHANGE_TYPE_FREE
+			newEntry._chgType |= ChangeEntry.CHANGE_TYPE_FREE
 			# if the info + notes field is empty, lets populate the field by our own:
 			if not newEntry._info and not newEntry._note:
 				newEntry._info = self._config.get('vplan', 'txtReplaceFree')
@@ -621,10 +624,9 @@ class DavinciJsonParser(BasicParser):
 		# marked somehow!
 		if not newEntry.hasChanges():
 			self._errorDialog.addData(pprint.pformat(les))
-			self._errorDialog.addWarning(
-				'Found changes which is not understandable (no changes !?) - skipping!'
+			self._errorDialog.addInfo(
+				'Found changes which is not understandable (no changes !?) - assume is fine.'
 			)
-			raise SkippedItem()
 
 		return newEntry
 
@@ -686,7 +688,7 @@ class DavinciJsonParser(BasicParser):
 			self._errorDialog.addError('Found a record without any valid applicable date!')
 			raise SkippedItem()
 
-		newEntry = ChangeEntry(entryDates, 1, None)
+		newEntry = ChangeEntry(entryDates, 1)
 		newEntry._startTime = '%s:%s:00' % (les['startTime'][:2], les['startTime'][2:4])
 		newEntry._endTime = '%s:%s:00' % (les['endTime'][:2], les['endTime'][2:4])
 		newEntry._hours = self._timeFramesPupil.getMatchingEntries(les['startTime'], les['endTime'])
@@ -781,9 +783,11 @@ class DavinciJsonParser(BasicParser):
 		if 'changes' in les.keys():
 			newEntry = self._parseChanges(les, newEntry)
 			newEntry._planType = BasicParser.PLAN_FILLIN
+			newEntry._chgType |= ChangeEntry.CHANGE_TYPE_STANDIN
 		else:
 			self._planType = self._planType | BasicParser.PLAN_REGULAR
 			newEntry._planType = BasicParser.PLAN_REGULAR
+			newEntry._chgType |= ChangeEntry.CHANGE_TYPE_REGULAR
 
 		# remove some kind of infos.
 		if len(newEntry._info) > 0:
@@ -878,7 +882,7 @@ class DavinciJsonParser(BasicParser):
 					entryDates.append('%s.%s.%s' % (dt[6:], dt[4:6], dt[:4]))
 
 				self._planType = self._planType | BasicParser.PLAN_YARDDUTY
-				newEntry = ChangeEntry(entryDates, 4, None)
+				newEntry = ChangeEntry(entryDates, 4, ChangeEntry.CHANGE_TYPE_DUTY)
 				newEntry._startTime = '%s:%s:00' % (les['startTime'][:2], les['startTime'][2:4])
 				newEntry._endTime = '%s:%s:00' % (les['endTime'][:2], les['endTime'][2:4])
 				newEntry._hours = self._timeFramesDuty.getMatchingEntries(les['startTime'], les['endTime'])

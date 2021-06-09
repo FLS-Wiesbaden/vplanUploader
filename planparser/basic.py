@@ -84,6 +84,11 @@ class ChangeEntry(object):
 	CHANGE_TYPE_MOVED = 16
 	CHANGE_TYPE_MOVED_FROM = 32
 	CHANGE_TYPE_FREE = 64
+	CHANGE_TYPE_DUTY = 128
+	CHANGE_TYPE_ADD_INFO = 256
+	CHANGE_TYPE_TEACHER_AWAY = 512
+	CHANGE_TYPE_STANDIN = 1024
+	CHANGE_TYPE_REGULAR = 2048
 
 	def __init__(self, dates, planType, chgType = 0):
 		self._planType = planType
