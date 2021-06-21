@@ -69,6 +69,13 @@ class BasicParser(QObject):
 	def getResult(self, transaction=None):
 		pass
 
+	@staticmethod
+	def cknull(data):
+		if not data.strip():
+			return None
+		else:
+			return data
+
 	def hasErrors(self):
 		if hasattr(self, '_errorDialog'):
 			return self._errorDialog.hasData
@@ -118,6 +125,103 @@ class ChangeEntry(object):
 		else:
 			return False
 
+	def match(self, dtStr, hour, teacher, subject, room, free=False):
+		if dtStr not in self._dates:
+			return False
+
+		found = False
+		for h in self._hours:
+			if h.hour == hour:
+				found = True
+				break
+		if not found:
+			return False
+
+		if teacher != self._teacher:
+			return False
+
+		if subject != self._subject:
+			return False
+
+		if room != self._room:
+			return False
+			
+		if free and not (self._chgType & ChangeEntry.CHANGE_TYPE_FREE) == ChangeEntry.CHANGE_TYPE_FREE:
+			return False
+
+		return True
+		
+	def matchStandin(self, dtStr, hour, teacher, subject, room, free=False):
+		if dtStr not in self._dates:
+			return False
+
+		found = False
+		for h in self._hours:
+			if h.hour == hour:
+				found = True
+				break
+		if not found:
+			return False
+
+		if self._changeTeacher != None and teacher != self._changeTeacher or \
+			self._changeTeacher is None and teacher != self._teacher:
+			return False
+
+		if self._changeSubject != None and subject != self._changeSubject or \
+			self._changeSubject is None and subject != self._subject:
+			return False
+
+		if self._changeRoom != None and room != self._changeRoom or \
+			self._changeRoom is None and room != self._room:
+			return False
+
+		if free and not (self._chgType & ChangeEntry.CHANGE_TYPE_FREE) == ChangeEntry.CHANGE_TYPE_FREE:
+			return False
+
+		return True
+
+	def __lt__(self, other):
+		# one of it does not have a date? Bad...
+		if not self._dates or not other._dates:
+			return False
+
+		# dates
+		if self._dates[0] < other._dates[0]:
+			return True
+		elif self._dates[0] > other._dates[0]:
+			return False
+
+		# same day, hour?
+		if not self._hours and not other._hours:
+			return False
+		elif not self._hours:
+			return True
+		elif not other._hours:
+			return False
+		elif self._hours[0] < other._hours[0]:
+			return True
+		elif self._hours[0] > other._hours[0]:
+			return False
+
+		# same day, same hour, same room, same class?
+		if self._course and other._course and \
+			self._course[0] < other._course[0]:
+			return True
+
+		return False
+
+	def __eq__(self, other):
+		if self._dates == other._dates and \
+			self._hours == other._hours and \
+			self._course == other._course and \
+			self._room == other._room:
+			return True
+		else:
+			return False
+
+	def __gt__(self, other):
+		return not self < other and not self == other
+
 	def asDict(self):
 		entries = []
 		if len(self._course) == 0:
@@ -125,13 +229,13 @@ class ChangeEntry(object):
 
 		for day in self._dates:
 			for cour in self._course:
-				for hour in self._hours:
+				for tf in self._hours:
 					e = {
 						'type': self._planType,
 						'date': day,
-						'hour': hour['hour'],
-						'starttime': self._startTime if hour['start'] is None else hour['start'],
-						'endtime': self._endTime if hour['end'] is None else hour['end'],
+						'hour': tf.hour,
+						'starttime': self._startTime if tf.start is None else tf.start,
+						'endtime': self._endTime if tf.end is None else tf.end,
 						'courseRef': self._courseRef,
 						'teacher': str(self._teacher) if self._teacher is not None else None,
 						'subject': self._subject,

@@ -6,4 +6,4 @@
 This module is there in order to parse standin plans in a standardized format.
 """
 
-__all__ = ["basic", "fls", "davinci"]
+__all__ = ["basic", "fls", "davinci", "untis"]

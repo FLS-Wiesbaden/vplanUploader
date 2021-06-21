@@ -222,6 +222,17 @@ class TimeEntry(object):
 		self._startTime = start
 		self._endTime = end
 
+	@property
+	def hour(self):
+		return self._label
+
+	@property
+	def start(self):
+		return self._startTime
+	@property
+	def end(self):
+		return self._endTime
+		
 	def __str__(self):
 		return self.__repr__()
 
@@ -230,7 +241,7 @@ class TimeEntry(object):
 
 	def serialize(self):
 		return {
-			'label': int(self._label),
+			'hour': int(self._label),
 			'start': self._startTime,
 			'end': self._endTime
 		}

@@ -26,8 +26,13 @@ encoding = utf-8
 [parser-fls]
 encoding = iso-8859-1
 
+[parser-untis]
+encoding = iso-8859-1
+weeks = 2
+
 [options]
 delUpFile: True
+delFolder: True
 backupFiles: False
 ; below watch path...
 backupFolder: False
