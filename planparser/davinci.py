@@ -49,29 +49,6 @@ class SchoolClassList(object):
 	def getList(self):
 		return list(self._idx.keys())
 
-class SchoolClass(object):
-
-	def __init__(self, classId, abbrev):
-		self._id = classId
-		self._abbreviation = abbrev
-		self._team = None
-		self._description = None
-
-	def setTeam(self, team):
-		self._team = team
-
-	def setDescription(self, desc):
-		self._description = desc
-
-	def getAbbreviation(self):
-		return self._abbreviation
-
-	def getId(self):
-		return self._id
-
-	def __str__(self):
-		return self._abbreviation
-
 class TeacherList(object):
 
 	def __init__(self):
@@ -260,14 +237,14 @@ class DavinciJsonParser(BasicParser):
 
 		# build the class list
 		for tf in self._fileContent['result']['classes']:
-			schoolClass = SchoolClass(tf['id'], tf['code'])
+			schoolClass = basic.SchoolClass(classId=tf['id'], abbreviation=tf['code'])
 			if 'description' in tf.keys():
-				schoolClass.setDescription(tf['description'])
+				schoolClass.description = (tf['description'])
 			if 'teamRefs' in tf:
 				for tr in tf['teamRefs']:
 					if len(tr) > 0:
 						if tr in self._teams.keys():
-							schoolClass.setTeam(self._teams[tr])
+							schoolClass.team = self._teams[tr]
 
 			self._classList.append(schoolClass)
 

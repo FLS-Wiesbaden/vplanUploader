@@ -17,11 +17,7 @@ import bisect
 from planparser import basic
 from planparser.basic import BasicParser, ChangeEntry
 
-class SchoolClass(object):
-	
-	def __init__(self, name, description=None):
-		self.name = name
-		self.description = description
+class SchoolClass(basic.SchoolClass):
 	
 	@classmethod
 	def fromList(cls, data):
