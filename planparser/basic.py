@@ -96,16 +96,16 @@ class Timetable(list):
 
 	def sort(self):
 		super().sort(key=lambda r: r[0])
-		self._keys = [ r[0] for r in self._list ]
+		self._keys = [ r[0] for r in self ]
 
 	def serialize(self):
-		return [ t[1].serialize() for t in self._list ]
+		return [ t[1].serialize() for t in self ]
 
 	def find(self, weekday, hour):
 		key = '{:d}-{:d}'.format(weekday, hour)
 		try:
 			res = bisect.bisect_left(self._keys, key)
-			return self._list[res][1]
+			return self[res][1]
 		except:
 			return None
 
