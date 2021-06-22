@@ -217,7 +217,7 @@ class LessonList(list):
 		except:
 			return None
 
-class Substituion(object):
+class Substitution(object):
 
 	def __init__(self):
 		self.nr = None
@@ -508,7 +508,7 @@ class UntisParser(BasicParser):
 			reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE)
 			for row in reader:
 				if row[0] == 'VTD':
-					pd = Substituion.fromList(row)
+					pd = Substitution.fromList(row)
 					# skip entries not relevant.
 					if pd.isRelevant():
 						substList.append(pd)
