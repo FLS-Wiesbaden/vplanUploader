@@ -27,11 +27,7 @@ class SchoolClass(object):
 	def fromList(cls, data):
 		return cls(data[0], data[1])
 
-class Room(object):
-
-	def __init__(self, name, description=None):
-		self.name = name
-		self.description = description
+class Room(basic.Room):
 	
 	@classmethod
 	def fromList(cls, data):
@@ -441,7 +437,7 @@ class UntisParser(BasicParser):
 			reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE)
 			for row in reader:
 				pd = Room.fromList(row)
-				self._roomList[pd.name] = pd
+				self._roomList[pd.abbreviation] = pd
 
 	def parseSubjects(self, fileName):
 		with open(fileName, newline='', encoding=self._encoding) as csvfile:
@@ -602,6 +598,7 @@ class UntisParser(BasicParser):
 
 		encTeachers = [ t.serialize() for t in self._teacherList.values() ]
 		encSubjects = [ t.serialize() for t in self._subjectList.values() ]
+		encRooms = [ t.serialize() for t in self._roomList.values() ]
 		encTimeframes = UntisParser.timeFrames.serialize()
 		return {
 			'stand': self._stand,
@@ -610,6 +607,7 @@ class UntisParser(BasicParser):
 			'class': list(self._classList.keys()),
 			'teacher': encTeachers,
 			'subjects': encSubjects,
+			'rooms': encRooms,
 			'timeframes': {
 				'pupil': encTimeframes,
 			#	'duty': self._timeFramesDuty.serialize()
@@ -618,6 +616,7 @@ class UntisParser(BasicParser):
 				'pupil': hashlib.sha256(json.dumps(encTimeframes).encode('utf-8')).hexdigest(),
 			#	'duty': hashlib.sha256(json.dumps(self._timeFramesDuty.serialize()).encode('utf-8')).hexdigest(),
 				'teacher': hashlib.sha256(json.dumps(encTeachers).encode('utf-8')).hexdigest(),
-				'subjects': hashlib.sha256(json.dumps(encSubjects).encode('utf-8')).hexdigest()
+				'subjects': hashlib.sha256(json.dumps(encSubjects).encode('utf-8')).hexdigest(),
+				'rooms': hashlib.sha256(json.dumps(encRooms).encode('utf-8')).hexdigest()
 			}
 		}

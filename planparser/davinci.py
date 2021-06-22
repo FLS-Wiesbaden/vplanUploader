@@ -195,6 +195,7 @@ class DavinciJsonParser(BasicParser):
 		self._classList = SchoolClassList()
 		self._teacherList = TeacherList()
 		self._subjectList = SubjectList()
+		self._roomList = []
 		self._stand = None
 
 		# Master data.
@@ -285,6 +286,13 @@ class DavinciJsonParser(BasicParser):
 			if 'description' in tf.keys():
 				subject.description = tf['description']
 			self._subjectList.append(subject)
+
+		# build the room list
+		for tf in self._fileContent['result']['rooms']:
+			room = basic.Room(roomId=tf['id'], abbreviation=tf['code'])
+			if 'description' in tf.keys():
+				room.description = tf['description']
+			self._roomList.append(room)
 
 		# time frames
 		for tf in self._fileContent['result']['timeframes']:
@@ -840,6 +848,7 @@ class DavinciJsonParser(BasicParser):
 		for f in planObjects:
 			planEntries.extend(f.asDict())
 
+		encRooms = [ t.serialize() for t in self._roomList.values() ]
 		return {
 			'stand': self._stand,
 			'plan': planEntries,
@@ -847,6 +856,7 @@ class DavinciJsonParser(BasicParser):
 			'class': self._classList.getList(),
 			'teacher': self._teacherList.serialize(),
 			'subjects': self._subjectList.serialize(),
+			'rooms': encRooms,
 			'timeframes': {
 				'pupil': self._timeFramesPupil.serialize(),
 				'duty': self._timeFramesDuty.serialize()
@@ -855,6 +865,7 @@ class DavinciJsonParser(BasicParser):
 				'pupil': hashlib.sha256(json.dumps(self._timeFramesPupil.serialize()).encode('utf-8')).hexdigest(),
 				'duty': hashlib.sha256(json.dumps(self._timeFramesDuty.serialize()).encode('utf-8')).hexdigest(),
 				'teacher': hashlib.sha256(json.dumps(self._teacherList.serialize()).encode('utf-8')).hexdigest(),
-				'subjects': hashlib.sha256(json.dumps(self._subjectList.serialize()).encode('utf-8')).hexdigest()
+				'subjects': hashlib.sha256(json.dumps(self._subjectList.serialize()).encode('utf-8')).hexdigest(),
+				'rooms': hashlib.sha256(json.dumps(encRooms).encode('utf-8')).hexdigest()
 			}
 		}

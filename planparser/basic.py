@@ -162,6 +162,25 @@ class Subject(object):
 			'abbreviation': self.abbreviation
 		}
 
+class Room(object):
+	
+	def __init__(self, abbreviation=None, description=None, roomId=None):
+		self.id = roomId
+		self.abbreviation = abbreviation
+		self.description = description
+
+	def __str__(self):
+		return self.abbreviation
+
+	def __repr__(self):
+		return '<Room abbreviation={:s}>'.format(self.abbreviation)
+
+	def serialize(self):
+		return {
+			'name': self.description,
+			'abbreviation': self.abbreviation
+		}
+
 class BasicParser(QObject):
 
 	planFileLoaded = pyqtSignal()
