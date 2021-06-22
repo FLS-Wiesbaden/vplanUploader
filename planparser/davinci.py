@@ -403,6 +403,7 @@ class DavinciJsonParser(BasicParser):
 				self._classAbsentReasons[tf['code']] = ClassAbsentReason.fromJson(tf)
 
 	def parseAbsentClasses(self):
+		# FIXME: Check for weekday Saturday/Sunday
 		# first find the absent classes
 		if 'classAbsences' not in self._fileContent['result'].keys():
 			return

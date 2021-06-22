@@ -12,6 +12,7 @@ import glob
 import zipfile
 import shutil
 from cx_Freeze import setup, Executable
+from flsvplan import __version__ as flsvplan_version
 scriptDir = os.path.dirname(os.path.realpath(__file__))
 buildDir = os.path.join(scriptDir, 'build')
 distDir = os.path.join(scriptDir, 'dist')
@@ -45,7 +46,7 @@ if sys.platform == 'win32':
 		files.append((f, 'imageformats\\' + os.path.basename(f)))
 
 # DEFAULT VALUES
-setupVersion = "4.35"
+setupVersion = flsvplan_version
 setupDescription = "Vertretungsplaner Client"
 setupPublisher = 'Friedrich-List-Schule Wiesbaden'
 setupPublisherMail = 'website-team@fls-wiesbaden.de'
