@@ -191,7 +191,6 @@ class Parser(basic.Parser):
 				self._classAbsentReasons[tf['code']] = ClassAbsentReason.fromJson(tf)
 
 	def parseAbsentClasses(self):
-		# FIXME: Check for weekday Saturday/Sunday
 		# first find the absent classes
 		if 'classAbsences' not in self._fileContent['result'].keys():
 			return
@@ -225,14 +224,19 @@ class Parser(basic.Parser):
 
 				while absentStart < absentEnd:
 					entryDate = absentStart.strftime('%d.%m.%Y')
+					# skip saturday + sunday
+					if self._config.get('parser-davinci', 'filterweekend') == 'True' and \
+						absentStart.strftime('%w') in ['0', '6']:
+						absentStart += datetime.timedelta(days=1)
+						continue
 
 					self._planType = self._planType | basic.Parser.PLAN_CANCELED
 					newEntry = ChangeEntry([entryDate], 2, ChangeEntry.CHANGE_TYPE_CANCELLED)
-					newEntry._hours = [{
-						'hour': 0,
-						'start': '000000',
-						'end': '235959'
-					}]
+					newEntry._hours = [basic.TimeFrame(
+						hour=0,
+						start='000000',
+						end='235959'
+					)]
 					newEntry._startTime = '00:00:00'
 					newEntry._endTime = '23:59:59'
 					course = self._classList.findById(les['classRef'])
@@ -275,6 +279,11 @@ class Parser(basic.Parser):
 
 				while absentStart <= absentEnd:
 					entryDate = absentStart.strftime('%d.%m.%Y')
+					# skip saturday + sunday
+					if self._config.get('parser-davinci', 'filterweekend') == 'True' and \
+						absentStart.strftime('%w') in ['0', '6']:
+						absentStart += datetime.timedelta(days=1)
+						continue
 
 					self._planType = self._planType | basic.Parser.PLAN_OUTTEACHER
 					newEntry = ChangeEntry([entryDate], 8, ChangeEntry.CHANGE_TYPE_TEACHER_AWAY)

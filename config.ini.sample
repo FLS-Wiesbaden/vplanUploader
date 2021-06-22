@@ -24,6 +24,7 @@ environment: production
 encoding = utf-8
 extension = .json
 enabled = True
+filterweekend = False
 
 [parser-fls]
 encoding = iso-8859-1

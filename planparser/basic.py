@@ -114,7 +114,7 @@ class Timetable(list):
 		start = startTime if len(startTime) > 4 else startTime + "00"
 		end = endTime if len(endTime) > 4 else endTime + "00"
 
-		for to in self:
+		for sk, to in self:
 			if to.weekday == weekday and \
 				to.start >= start and \
 				to.end <= end:
@@ -145,7 +145,7 @@ class Teacher(object):
 
 class Subject(object):
 	
-	def __init__(self, abbreviation=None, description=None, subjectId=None):
+	def __init__(self, abbreviation=None, description='', subjectId=None):
 		self.id = subjectId
 		self.abbreviation = abbreviation
 		self.description = description
@@ -164,7 +164,7 @@ class Subject(object):
 
 class Room(object):
 	
-	def __init__(self, abbreviation=None, description=None, roomId=None):
+	def __init__(self, abbreviation=None, description='', roomId=None):
 		self.id = roomId
 		self.abbreviation = abbreviation
 		self.description = description
@@ -183,7 +183,7 @@ class Room(object):
 
 class SchoolClass(object):
 	
-	def __init__(self, abbreviation=None, description=None, classId=None, team=None):
+	def __init__(self, abbreviation=None, description='', classId=None, team=None):
 		self.id = classId
 		self.abbreviation = abbreviation
 		self.description = description
