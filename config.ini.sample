@@ -22,13 +22,19 @@ environment: production
 
 [parser-davinci]
 encoding = utf-8
+extension = .json
+enabled = True
 
 [parser-fls]
 encoding = iso-8859-1
+extension = .csv
+enabled = True
 
 [parser-untis]
 encoding = iso-8859-1
 weeks = 2
+extension = .txt
+enabled = True
 
 [options]
 delUpFile: True
@@ -49,8 +55,8 @@ phost: 0.0.0.0
 pport: 80
 
 [vplan]
-; type can be "daVinci"
-type: daVinci
+; type can be "daVinci", "untis", "auto"
+type: auto
 ; version can be "5" or "6"
 version: 6
 ; colsep can be "\t", ";", ","

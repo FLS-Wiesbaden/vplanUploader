@@ -103,6 +103,26 @@ class Vertretungsplaner(QObject):
 		timeout = 10000
 		self.message.emit(title, msg, trayIcon, timeout)
 
+	def getHandler(self, fileName):
+		extension = os.path.splitext(fileName).lower()
+		ptype = self.config.get('vplan', 'type')
+		# hard coded rule: fls parser is always allowed!
+		flsManParser = self.config.get('parser-fls', 'extension')
+		if flsManParser and flsManParser == extension:
+			return FlsCsvParser
+		elif ptype == 'daVinci':
+			if extension == '.json':
+				return DavinciJsonParser
+		elif ptype == 'untis':
+			if extension == '.txt':
+				return UntisParser
+		elif ptype == 'auto':
+			if extension == '.json':
+				return DavinciJsonParser
+			elif extension == '.txt':
+				return UntisParser
+		return None
+
 	@pyqtSlot()
 	def getNewFiles(self):
 		print('Starte suche...')
@@ -132,15 +152,7 @@ class Vertretungsplaner(QObject):
 			print("\nChanged/Added new Files: ", ", ".join(todo))
 			for f in todo:
 				f = f.strip()
-				handler = None
-				if self.config.get('vplan', 'type') == 'daVinci':
-					if int(self.config.get('vplan', 'version')) == 6:
-						if f.lower().endswith('.csv'):
-							handler = FlsCsvParser
-						elif f.lower().endswith('.json'):
-							handler = DavinciJsonParser
-				elif self.config.get('vplan', 'type') == 'untis':
-					handler = UntisParser
+				handler = self.getHandler(f)
 				
 				if handler:
 					transName = '{}_{}_{}'.format(
