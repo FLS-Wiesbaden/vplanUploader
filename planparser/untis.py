@@ -332,7 +332,7 @@ class UntisParser(BasicParser):
 		self._classList = basic.SchoolClassList()
 		self._roomList = {}
 		self._teacherList = basic.TeacherList()
-		self._subjectList = {}
+		self._subjectList = basic.SubjectList()
 		self._lessonList = LessonList()
 		UntisParser.timeFrames = basic.Timetable()
 		self._stand = None
@@ -438,15 +438,13 @@ class UntisParser(BasicParser):
 		with open(fileName, newline='', encoding=self._encoding) as csvfile:
 			reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE)
 			for row in reader:
-				pd = Subject.fromList(row)
-				self._subjectList[pd.name] = pd
+				self._subjectList.append(Subject.fromList(row))
 
 	def parseTeachers(self, fileName):
 		with open(fileName, newline='', encoding=self._encoding) as csvfile:
 			reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE)
 			for row in reader:
-				pd = Teacher.fromList(row)
-				self._teacherList[pd.name] = pd
+				self._teacherList.append(Teacher.fromList(row))
 
 	def parseLessons(self, fileName):
 		dt = datetime.datetime(2021, 6, 22)
@@ -593,7 +591,7 @@ class UntisParser(BasicParser):
 
 		encClasses = self._classList.serialize()
 		encTeachers = self._teacherList.serialize()
-		encSubjects = [ t.serialize() for t in self._subjectList.values() ]
+		encSubjects = self._subjectList.serialize()
 		encRooms = [ t.serialize() for t in self._roomList.values() ]
 		encTimeframes = UntisParser.timeFrames.serialize()
 		return {

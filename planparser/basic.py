@@ -212,7 +212,7 @@ class EntityList(dict):
 		except:
 			pass
 
-	def findClassById(self, classId):
+	def findById(self, classId):
 		for f in self.values():
 			if f.id == classId:
 				return f
@@ -226,6 +226,9 @@ class SchoolClassList(EntityList):
 	pass
 
 class TeacherList(EntityList):
+	pass
+
+class SubjectList(EntityList):
 	pass
 
 class BasicParser(QObject):
