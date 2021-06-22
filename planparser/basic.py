@@ -231,6 +231,9 @@ class TeacherList(EntityList):
 class SubjectList(EntityList):
 	pass
 
+class RoomList(EntityList):
+	pass
+
 class BasicParser(QObject):
 
 	planFileLoaded = pyqtSignal()

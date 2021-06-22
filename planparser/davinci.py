@@ -77,7 +77,7 @@ class DavinciJsonParser(BasicParser):
 		self._classList = basic.SchoolClassList()
 		self._teacherList = basic.TeacherList()
 		self._subjectList = basic.SubjectList()
-		self._roomList = []
+		self._roomList = basic.RoomList()
 		self._stand = None
 
 		# Master data.
@@ -737,7 +737,7 @@ class DavinciJsonParser(BasicParser):
 		encClasses = self._classList.serialize()
 		encTeachers = self._teacherList.serialize()
 		encSubjects = self._subjectList.serialize()
-		encRooms = [ t.serialize() for t in self._roomList.values() ]
+		encRooms = self._roomList.serialize()
 		return {
 			'stand': self._stand,
 			'plan': planEntries,

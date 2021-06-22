@@ -330,7 +330,7 @@ class UntisParser(BasicParser):
 		self._supervision = []
 		self._absentDetails = {}
 		self._classList = basic.SchoolClassList()
-		self._roomList = {}
+		self._roomList = basic.RoomList()
 		self._teacherList = basic.TeacherList()
 		self._subjectList = basic.SubjectList()
 		self._lessonList = LessonList()
@@ -431,8 +431,7 @@ class UntisParser(BasicParser):
 		with open(fileName, newline='', encoding=self._encoding) as csvfile:
 			reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE)
 			for row in reader:
-				pd = Room.fromList(row)
-				self._roomList[pd.abbreviation] = pd
+				self._roomList.append(Room.fromList(row))
 
 	def parseSubjects(self, fileName):
 		with open(fileName, newline='', encoding=self._encoding) as csvfile:
@@ -592,7 +591,7 @@ class UntisParser(BasicParser):
 		encClasses = self._classList.serialize()
 		encTeachers = self._teacherList.serialize()
 		encSubjects = self._subjectList.serialize()
-		encRooms = [ t.serialize() for t in self._roomList.values() ]
+		encRooms = self._roomList.serialize()
 		encTimeframes = UntisParser.timeFrames.serialize()
 		return {
 			'stand': self._stand,
