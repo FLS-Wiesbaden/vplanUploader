@@ -606,3 +606,7 @@ class Parser(basic.Parser):
 				'rooms': hashlib.sha256(json.dumps(encRooms).encode('utf-8')).hexdigest()
 			}
 		}
+
+	@staticmethod
+	def onlyFirstFile():
+		return True

@@ -33,8 +33,6 @@ from PyQt5.QtGui import QIcon
 from searchplaner import SearchPlaner
 from errorlog import ErrorDialog
 from planparser import getParser
-from planparser.fls import Parser as FlsCsvParser
-from planparser.davinci import Parser as DavinciJsonParser
 from planparser.untis import Parser as UntisParser
 import sentry_sdk
 
@@ -164,7 +162,7 @@ class Vertretungsplaner(QObject):
 					print('Ending transaction {}'.format(transName))
 					transaction.finish()
 					# for untis, we parse only the first one!
-					if handler == UntisParser:
+					if handler.onlyFirstFile():
 						break
 				else:
 					print('"%s" will be ignored.' % (f,))

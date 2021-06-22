@@ -290,6 +290,10 @@ class Parser(QObject):
 		pass
 
 	@staticmethod
+	def onlyFirstFile():
+		return False
+
+	@staticmethod
 	def cknull(data):
 		if not data.strip():
 			return None
