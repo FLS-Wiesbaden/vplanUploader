@@ -11,7 +11,6 @@ import pprint
 import re
 import hashlib
 import datetime
-import sentry_sdk
 from codecs import BOM_UTF8
 from planparser.basic import BasicParser, ChangeEntry
 from planparser.basic import DuplicateItem, SuperseedingItem, SkippedItem

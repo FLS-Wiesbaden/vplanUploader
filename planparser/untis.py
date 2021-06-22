@@ -7,18 +7,14 @@
 # @author Lukas Schreiner
 import time
 import json
-import pprint
 import re
 import hashlib
 import datetime
-import sentry_sdk
 import os.path
 import datetime
 import csv
 import bisect
-from codecs import BOM_UTF8
 from planparser.basic import BasicParser, ChangeEntry
-from planparser.basic import DuplicateItem, SuperseedingItem, SkippedItem
 
 class SchoolClass(object):
 	
