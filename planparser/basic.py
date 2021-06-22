@@ -23,11 +23,11 @@ class SkippedItem(Exception):
 
 class TimeFrame(object):
 
-	def __init__(self, hour=None):
+	def __init__(self, hour=None, start=None, end=None):
 		self.weekday = 0
 		self.hour = hour
-		self.start = None
-		self.end = None
+		self.start = start
+		self.end = end
 
 	@property
 	def sortkey(self):

@@ -441,11 +441,11 @@ class DavinciJsonParser(BasicParser):
 
 					self._planType = self._planType | BasicParser.PLAN_OUTTEACHER
 					newEntry = ChangeEntry([entryDate], 8, ChangeEntry.CHANGE_TYPE_TEACHER_AWAY)
-					newEntry._hours = [{
-						'hour': 0,
-						'start': '000000',
-						'end': '235959'
-					}]
+					newEntry._hours = [basic.TimeFrame(
+						hour=0,
+						start='000000',
+						end='235959'
+					)]
 					newEntry._startTime = '00:00:00'
 					newEntry._endTime = '23:59:59'
 					teacher = self._teacherList.findById(les['teacherRef'])
