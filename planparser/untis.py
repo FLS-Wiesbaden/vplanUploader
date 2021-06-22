@@ -14,6 +14,7 @@ import os.path
 import datetime
 import csv
 import bisect
+from planparser import basic
 from planparser.basic import BasicParser, ChangeEntry
 
 class SchoolClass(object):
@@ -335,66 +336,7 @@ class Supervision(object):
 		self.flag = int(data[5])
 		return self
 
-class TimeFrame(object):
-
-	def __init__(self):
-		self.weekday = None
-		self.hour = None
-		self.start = None
-		self.end = None
-
-	@property
-	def sortkey(self):
-		return '{:d}-{:d}'.format(
-			self.weekday, self.hour
-		)
-
-	def __eq__(self, other):
-		return self.weekday == other.weekday and \
-			self.hour == other.hour and \
-			self.start == other.start and \
-			self.end == other.end
-
-	def __lt__(self, other):
-		if self.weekday < other.weekday:
-			return True
-		elif self.weekday > other.weekday:
-			return False
-
-		if self.hour < other.hour:
-			return True
-		elif self.hour > other.hour:
-			return False
-
-		if self.start < other.start:
-			return True
-
-		return False
-
-	def __gt__(self, other):
-		return not self == other and not self < other
-
-	def __str__(self):
-		return self.__repr__()
-
-	def __repr__(self):
-		return '<TimeFrame #{:d}: {:s} to {:s} on {:d}>'.format(
-			self.hour,
-			self.start,
-			self.end,
-			self.weekday
-		)
-
-	def toDict(self):
-		return {
-			'hour': self.hour,
-			'start': self.start,
-			'end': self.end,
-			'weekday': self.weekday
-		}
-
-	def serialize(self):
-		return self.toDict()
+class TimeFrame(basic.TimeFrame):
 
 	@classmethod
 	def fromList(cls, data):
@@ -405,34 +347,8 @@ class TimeFrame(object):
 		self.end = data[4] + '00'
 		return self
 
-class Timetable(object):
-	
-	def __init__(self):
-		self._list = []
-		self._keys = []
-
-	def add(self, entry):
-		self._list.append(
-			(entry.sortkey, entry)
-		)
-
-	def sort(self):
-		self._list.sort(key=lambda r: r[0])
-		self._keys = [ r[0] for r in self._list ]
-
-	def serialize(self):
-		return [ t[1].serialize() for t in self._list ]
-
-	def find(self, weekday, hour):
-		key = '{:d}-{:d}'.format(weekday, hour)
-		try:
-			res = bisect.bisect_left(self._keys, key)
-			return self._list[res][1]
-		except:
-			return None
-
 class UntisParser(BasicParser):
-	timeFrames: Timetable = None
+	timeFrames: basic.Timetable = None
 
 	def __init__(self, config, errorDialog, parsingFile):
 		super().__init__(config, parsingFile)
@@ -448,7 +364,7 @@ class UntisParser(BasicParser):
 		self._teacherList = {}
 		self._subjectList = {}
 		self._lessonList = LessonList()
-		UntisParser.timeFrames = Timetable()
+		UntisParser.timeFrames = basic.Timetable()
 		self._stand = None
 
 		self._path = os.path.dirname(self._parsingFile)
@@ -533,9 +449,7 @@ class UntisParser(BasicParser):
 			reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE)
 			for row in reader:
 				pd = TimeFrame.fromList(row)
-				UntisParser.timeFrames.add(pd)
-
-		UntisParser.timeFrames.sort()
+				UntisParser.timeFrames.append(pd)
 
 	def parseClasses(self, fileName):
 		with open(fileName, newline='', encoding=self._encoding) as csvfile:

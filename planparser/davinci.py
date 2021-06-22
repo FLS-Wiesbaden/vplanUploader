@@ -12,6 +12,7 @@ import re
 import hashlib
 import datetime
 from codecs import BOM_UTF8
+from planparser import basic
 from planparser.basic import BasicParser, ChangeEntry
 from planparser.basic import DuplicateItem, SuperseedingItem, SkippedItem
 
@@ -186,64 +187,15 @@ class Subject(object):
 			'abbreviation': self._abbreviation
 		}
 
-class Timetable(object):
+class TimeFrame(basic.TimeFrame):
 
-	def __init__(self):
-		self._list = []
-
-	def append(self, cl):
-		self._list.append(cl)
-
-	def remove(self, cl):
-		self._list.remove(cl)
-
-	def getMatchingEntries(self, startTime, endTime):
-		timeObjects = []
-
-		for to in self._list:
-			if to._startTime >= startTime and to._endTime <= endTime:
-				# times are only in format: hhmm
-				timeObjects.append({
-					'hour': to._label,
-					'start': to._startTime + '00',
-					'end': to._endTime + '00'
-				})
-
-		return timeObjects
-
-	def serialize(self):
-		return [cl.serialize() for cl in self._list]
-
-class TimeEntry(object):
-
-	def __init__(self, label, start, end):
-		self._label = label
-		self._startTime = start
-		self._endTime = end
-
-	@property
-	def hour(self):
-		return self._label
-
-	@property
-	def start(self):
-		return self._startTime
-	@property
-	def end(self):
-		return self._endTime
-		
-	def __str__(self):
-		return self.__repr__()
-
-	def __repr__(self):
-		return '<TimeEntry #%i: %s to %s>' % (self._label, self._startTime, self._endTime)
-
-	def serialize(self):
-		return {
-			'hour': int(self._label),
-			'start': self._startTime,
-			'end': self._endTime
-		}
+	@classmethod
+	def fromJson(cls, data):
+		self = cls()
+		self.hour = int(data['label'])
+		self.start = data['startTime'] + "00"
+		self.end = data['endTime'] + "00"
+		return self
 
 class ClassAbsentReason(object):
 
@@ -299,8 +251,8 @@ class DavinciJsonParser(BasicParser):
 		self._stand = None
 
 		# Master data.
-		self._timeFramesPupil = Timetable()
-		self._timeFramesDuty = Timetable()
+		self._timeFramesPupil = basic.Timetable()
+		self._timeFramesDuty = basic.Timetable()
 		self._classAbsentReasons = {}
 		self._teams = {}
 
@@ -390,7 +342,7 @@ class DavinciJsonParser(BasicParser):
 		for tf in self._fileContent['result']['timeframes']:
 			if tf['code'] in ['Standard', 'Aufsichten']:
 				for t in tf['timeslots']:
-					te = TimeEntry(int(t['label']), t['startTime'], t['endTime'])
+					te = TimeFrame.fromJson(t)
 					if tf['code'] == 'Standard':
 						self._timeFramesPupil.append(te)
 					elif tf['code'] == 'Aufsichten':
@@ -702,7 +654,7 @@ class DavinciJsonParser(BasicParser):
 		newEntry = ChangeEntry(entryDates, 1)
 		newEntry._startTime = '%s:%s:00' % (les['startTime'][:2], les['startTime'][2:4])
 		newEntry._endTime = '%s:%s:00' % (les['endTime'][:2], les['endTime'][2:4])
-		newEntry._hours = self._timeFramesPupil.getMatchingEntries(les['startTime'], les['endTime'])
+		newEntry._hours = self._timeFramesPupil.findByTime(les['startTime'], les['endTime'])
 		newEntry._courseRef = les['courseRef']
 		if len(newEntry._hours) <= 0:
 			self._errorDialog.addData(pprint.pformat(les))

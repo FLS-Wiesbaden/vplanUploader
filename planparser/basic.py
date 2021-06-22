@@ -7,7 +7,10 @@
 # @author Lukas Schreiner
 
 from PyQt5.QtCore import QObject, pyqtSignal
-import json, uuid, hashlib
+import json
+import uuid
+import hashlib
+import bisect
 
 class DuplicateItem(Exception):
 	pass
@@ -18,6 +21,106 @@ class SuperseedingItem(Exception):
 class SkippedItem(Exception):
 	pass
 
+class TimeFrame(object):
+
+	def __init__(self):
+		self.weekday = 0
+		self.hour = None
+		self.start = None
+		self.end = None
+
+	@property
+	def sortkey(self):
+		return '{:d}-{:d}'.format(
+			self.weekday, self.hour
+		)
+
+	def __eq__(self, other):
+		return self.weekday == other.weekday and \
+			self.hour == other.hour and \
+			self.start == other.start and \
+			self.end == other.end
+
+	def __lt__(self, other):
+		if self.weekday < other.weekday:
+			return True
+		elif self.weekday > other.weekday:
+			return False
+
+		if self.hour < other.hour:
+			return True
+		elif self.hour > other.hour:
+			return False
+
+		if self.start < other.start:
+			return True
+
+		return False
+
+	def __gt__(self, other):
+		return not self == other and not self < other
+
+	def __str__(self):
+		return self.__repr__()
+
+	def __repr__(self):
+		return '<TimeFrame #{:d}: {:s} to {:s} on {:d}>'.format(
+			self.hour,
+			self.start,
+			self.end,
+			self.weekday
+		)
+
+	def toDict(self):
+		return {
+			'hour': self.hour,
+			'start': self.start,
+			'end': self.end,
+			'weekday': self.weekday
+		}
+
+	def serialize(self):
+		return self.toDict()
+
+class Timetable(list):
+
+	def __init__(self):
+		super().__init__()
+		self._keys = []
+
+	def append(self, entry):
+		super().append(
+			(entry.sortkey, entry)
+		)
+		self.sort()
+
+	def sort(self):
+		super().sort(key=lambda r: r[0])
+		self._keys = [ r[0] for r in self._list ]
+
+	def serialize(self):
+		return [ t[1].serialize() for t in self._list ]
+
+	def find(self, weekday, hour):
+		key = '{:d}-{:d}'.format(weekday, hour)
+		try:
+			res = bisect.bisect_left(self._keys, key)
+			return self._list[res][1]
+		except:
+			return None
+
+	def findByTime(self, startTime, endTime, weekday=0):
+		timeObjects = []
+		start = startTime if len(startTime) > 4 else startTime + "00"
+		end = endTime if len(endTime) > 4 else endTime + "00"
+
+		for to in self:
+			if to.weekday == weekday and \
+				to.start >= start and \
+				to.end <= end:
+				timeObjects.append(to)
+
+		return timeObjects
 class BasicParser(QObject):
 
 	planFileLoaded = pyqtSignal()
