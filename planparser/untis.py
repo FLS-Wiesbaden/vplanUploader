@@ -37,17 +37,7 @@ class Room(object):
 	def fromList(cls, data):
 		return cls(data[0], data[1])
 
-class Subject(object):
-
-	def __init__(self, name, description=None):
-		self.name = name
-		self.description = description
-
-	def serialize(self):
-		return {
-			'name': self.description,
-			'abbreviation': self.name
-		}
+class Subject(basic.Subject):
 	
 	@classmethod
 	def fromList(cls, data):

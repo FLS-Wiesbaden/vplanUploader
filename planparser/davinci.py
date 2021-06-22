@@ -134,31 +134,6 @@ class SubjectList(object):
 	def serialize(self):
 		return [cl.serialize() for cl in self._list]
 
-class Subject(object):
-
-	def __init__(self, tId, abbrev):
-		self._id = tId
-		self._abbreviation = abbrev
-		self._name = ''
-
-	def setName(self, name):
-		self._name = name
-
-	def getAbbreviation(self):
-		return self._abbreviation
-
-	def getId(self):
-		return self._id
-
-	def __str__(self):
-		return self._abbreviation
-
-	def serialize(self):
-		return {
-			'name': self._name,
-			'abbreviation': self._abbreviation
-		}
-
 class TimeFrame(basic.TimeFrame):
 
 	@classmethod
@@ -306,9 +281,9 @@ class DavinciJsonParser(BasicParser):
 
 		# build the subject list
 		for tf in self._fileContent['result']['subjects']:
-			subject = Subject(tf['id'], tf['code'])
+			subject = basic.Subject(subjectId=tf['id'], abbreviation=tf['code'])
 			if 'description' in tf.keys():
-				subject.setName(tf['description'])
+				subject.description = tf['description']
 			self._subjectList.append(subject)
 
 		# time frames
