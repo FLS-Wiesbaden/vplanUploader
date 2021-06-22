@@ -16,39 +16,6 @@ from planparser import basic
 from planparser.basic import BasicParser, ChangeEntry
 from planparser.basic import DuplicateItem, SuperseedingItem, SkippedItem
 
-class SchoolClassList(object):
-
-	def __init__(self):
-		self._list = []
-		self._idx = {}
-
-	def append(self, cl):
-		self._list.append(cl)
-		self._idx[cl.getAbbreviation()] = cl
-
-	def remove(self, cl):
-		self._list.remove(cl)
-		try:
-			del(self._idx[cl.getAbbreviation()])
-		except:
-			pass
-
-	def findClassById(self, cId):
-		for f in self._list:
-			if f.getId() == cId:
-				return f
-
-		return None
-
-	def findClassByAbbreviation(self, abbrev):
-		try:
-			return self._idx[abbrev]
-		except KeyError:
-			return None
-
-	def getList(self):
-		return list(self._idx.keys())
-
 class TeacherList(object):
 
 	def __init__(self):
@@ -169,7 +136,7 @@ class DavinciJsonParser(BasicParser):
 		self._absentTeacher = []
 		self._supervision = []
 		self._absentDetails = {}
-		self._classList = SchoolClassList()
+		self._classList = basic.SchoolClassList()
 		self._teacherList = TeacherList()
 		self._subjectList = SubjectList()
 		self._roomList = []
@@ -448,11 +415,15 @@ class DavinciJsonParser(BasicParser):
 				elif les['classCodes']:
 					# last try, through the details.
 					# get first class code
-					classObj = self._classList.findClassByAbbreviation(les['classCodes'][0])
-					if classObj and not newEntry._note:
-						reason = self.findAbsentReason(classObj.getId(), absentReasonObj.getId(), les)
-						if reason:
-							newEntry._note = reason
+					try:
+						classObj = self._classList[les['classCodes'][0]]
+					except KeyError:
+						pass
+					else:
+						if classObj and not newEntry._note:
+							reason = self.findAbsentReason(classObj.id, absentReasonObj.getId(), les)
+							if reason:
+								newEntry._note = reason
 
 		# some information?
 		if 'caption' in les['changes'].keys():
@@ -830,7 +801,7 @@ class DavinciJsonParser(BasicParser):
 			'stand': self._stand,
 			'plan': planEntries,
 			'ptype': self._planType,
-			'class': self._classList.getList(),
+			'class': list(self._classList.keys()),
 			'teacher': self._teacherList.serialize(),
 			'subjects': self._subjectList.serialize(),
 			'rooms': encRooms,

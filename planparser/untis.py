@@ -329,7 +329,7 @@ class UntisParser(BasicParser):
 		self._absentTeacher = []
 		self._supervision = []
 		self._absentDetails = {}
-		self._classList = {}
+		self._classList = basic.SchoolClassList()
 		self._roomList = {}
 		self._teacherList = {}
 		self._subjectList = {}
@@ -425,8 +425,7 @@ class UntisParser(BasicParser):
 		with open(fileName, newline='', encoding=self._encoding) as csvfile:
 			reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE)
 			for row in reader:
-				pd = SchoolClass.fromList(row)
-				self._classList[pd.name] = pd
+				self._classList.append(SchoolClass.fromList(row))
 
 	def parseRooms(self, fileName):
 		with open(fileName, newline='', encoding=self._encoding) as csvfile:

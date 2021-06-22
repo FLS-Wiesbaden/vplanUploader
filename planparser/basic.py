@@ -201,6 +201,23 @@ class SchoolClass(object):
 			'abbreviation': self.abbreviation
 		}
 
+class SchoolClassList(dict):
+
+	def append(self, entry):
+		self[entry.abbreviation] = entry
+
+	def remove(self, entry):
+		try:
+			del(self[entry.abbreviation])
+		except:
+			pass
+
+	def findClassById(self, classId):
+		for f in self.values():
+			if f.id == classId:
+				return f
+
+		return None
 
 class BasicParser(QObject):
 
