@@ -32,9 +32,10 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtGui import QIcon
 from searchplaner import SearchPlaner
 from errorlog import ErrorDialog
-from planparser.fls import FlsCsvParser
-from planparser.davinci import DavinciJsonParser
-from planparser.untis import UntisParser
+from planparser import getParser
+from planparser.fls import Parser as FlsCsvParser
+from planparser.davinci import Parser as DavinciJsonParser
+from planparser.untis import Parser as UntisParser
 import sentry_sdk
 
 # absolute hack, but required for cx_Freeze to work properly.
@@ -104,24 +105,9 @@ class Vertretungsplaner(QObject):
 		self.message.emit(title, msg, trayIcon, timeout)
 
 	def getHandler(self, fileName):
-		extension = os.path.splitext(fileName).lower()
+		extension = os.path.splitext(fileName)[-1].lower()
 		ptype = self.config.get('vplan', 'type')
-		# hard coded rule: fls parser is always allowed!
-		flsManParser = self.config.get('parser-fls', 'extension')
-		if flsManParser and flsManParser == extension:
-			return FlsCsvParser
-		elif ptype == 'daVinci':
-			if extension == '.json':
-				return DavinciJsonParser
-		elif ptype == 'untis':
-			if extension == '.txt':
-				return UntisParser
-		elif ptype == 'auto':
-			if extension == '.json':
-				return DavinciJsonParser
-			elif extension == '.txt':
-				return UntisParser
-		return None
+		return getParser(extension, self.config)
 
 	@pyqtSlot()
 	def getNewFiles(self):

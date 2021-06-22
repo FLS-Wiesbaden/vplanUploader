@@ -15,7 +15,7 @@ import datetime
 import csv
 import bisect
 from planparser import basic
-from planparser.basic import BasicParser, ChangeEntry
+from planparser.basic import ChangeEntry
 
 class SchoolClass(basic.SchoolClass):
 	
@@ -119,7 +119,7 @@ class Lesson(object):
 					[curDate.strftime('%d.%m.%Y')],
 					0,
 				)
-				tf = UntisParser.timeFrames.find(self.weekday, self.hour)
+				tf = Parser.timeFrames.find(self.weekday, self.hour)
 				ce._hours = [tf]
 				ce._startTime = tf.start
 				ce._endTime = tf.end
@@ -132,7 +132,7 @@ class Lesson(object):
 				for les in lessonList.find(self.weekday, self.hour, \
 					self.className, self.lineNumber, week, True):
 					substitutionFound = True
-					ce._planType |= BasicParser.PLAN_FILLIN
+					ce._planType |= basic.Parser.PLAN_FILLIN
 					if self.teacher != les.teacher:
 						ce._changeTeacher = les.teacher
 						ce._chgType |= ChangeEntry.CHANGE_TYPE_TEACHER
@@ -145,13 +145,13 @@ class Lesson(object):
 				if not substitutionFound and occ == 'x':
 					ce._chgType |= ChangeEntry.CHANGE_TYPE_FREE
 					ce._chgType |= ChangeEntry.CHANGE_TYPE_STANDIN
-					ce._planType |= BasicParser.PLAN_FILLIN
+					ce._planType |= basic.Parser.PLAN_FILLIN
 					ce._info = cfg.get('vplan', 'txtReplaceFree')
 				elif substitutionFound:
-					ce._planType |= BasicParser.PLAN_FILLIN
+					ce._planType |= basic.Parser.PLAN_FILLIN
 					ce._chgType |= ChangeEntry.CHANGE_TYPE_STANDIN
 				else:
-					ce._planType |= BasicParser.PLAN_REGULAR
+					ce._planType |= basic.Parser.PLAN_REGULAR
 					ce._chgType |= ChangeEntry.CHANGE_TYPE_REGULAR
 				yield ce
 			generatedWeeks += 1
@@ -164,7 +164,7 @@ class Lesson(object):
 		self.weekday = int(data[1])
 		self.hour = int(data[2])
 		self.subject = data[3]
-		self.room = BasicParser.cknull(data[4])
+		self.room = basic.Parser.cknull(data[4])
 		self.untisNumber = int(data[5])
 		self.flag = int(data[6])
 		self.className = data[7]
@@ -260,21 +260,21 @@ class Substitution(object):
 	def fromList(cls, data):
 		self = cls()
 		self.nr = int(data[1])
-		self.type = BasicParser.cknull(data[2])
-		self.date = BasicParser.cknull(data[3])
-		self.day = BasicParser.cknull(data[4])
-		self.hour = BasicParser.cknull(data[5])
-		self.time = BasicParser.cknull(data[6])
-		self.subject = BasicParser.cknull(data[7])
-		self.changeSubject = BasicParser.cknull(data[8])
-		self.teacher = BasicParser.cknull(data[9])
-		self.changeTeacher = BasicParser.cknull(data[10])
-		self.className = BasicParser.cknull(data[11])
-		self.changeClassName = BasicParser.cknull(data[12])
-		self.room = BasicParser.cknull(data[13])
-		self.changeRoom = BasicParser.cknull(data[14])
-		self.movedInfo = BasicParser.cknull(data[16])
-		self.notes = BasicParser.cknull(data[21])
+		self.type = basic.Parser.cknull(data[2])
+		self.date = basic.Parser.cknull(data[3])
+		self.day = basic.Parser.cknull(data[4])
+		self.hour = basic.Parser.cknull(data[5])
+		self.time = basic.Parser.cknull(data[6])
+		self.subject = basic.Parser.cknull(data[7])
+		self.changeSubject = basic.Parser.cknull(data[8])
+		self.teacher = basic.Parser.cknull(data[9])
+		self.changeTeacher = basic.Parser.cknull(data[10])
+		self.className = basic.Parser.cknull(data[11])
+		self.changeClassName = basic.Parser.cknull(data[12])
+		self.room = basic.Parser.cknull(data[13])
+		self.changeRoom = basic.Parser.cknull(data[14])
+		self.movedInfo = basic.Parser.cknull(data[16])
+		self.notes = basic.Parser.cknull(data[21])
 		return self
 
 class Supervision(object):
@@ -317,12 +317,13 @@ class TimeFrame(basic.TimeFrame):
 		self.end = data[4] + '00'
 		return self
 
-class UntisParser(BasicParser):
+class Parser(basic.Parser):
 	timeFrames: basic.Timetable = None
 
+	EXTENSIONS = ['.txt']
+
 	def __init__(self, config, errorDialog, parsingFile):
-		super().__init__(config, parsingFile)
-		self._errorDialog = errorDialog
+		super().__init__(config, errorDialog, parsingFile)
 		self._planDates = []
 		self._standin = []
 		self._absentClasses = []
@@ -334,8 +335,7 @@ class UntisParser(BasicParser):
 		self._teacherList = basic.TeacherList()
 		self._subjectList = basic.SubjectList()
 		self._lessonList = LessonList()
-		UntisParser.timeFrames = basic.Timetable()
-		self._stand = None
+		Parser.timeFrames = basic.Timetable()
 
 		self._path = os.path.dirname(self._parsingFile)
 		self._files = {
@@ -353,18 +353,10 @@ class UntisParser(BasicParser):
 		}
 		self._timeout = 10.0
 
-		# Master data.
-		self._classAbsentReasons = {}
-		self._teams = {}
-
 		# With the json interface of DaVinci 6, we support mostly all features.
 		# So here we set the default flags.
-		self._planType |= BasicParser.PLAN_CANCELED | BasicParser.PLAN_FILLIN | BasicParser.PLAN_REGULAR
-		self._planType |= BasicParser.PLAN_OUTTEACHER | BasicParser.PLAN_YARDDUTY
-
-		# some patterns (better don't ask which possibilities we have).
-		self._pattMovedFrom = re.compile(self._config.get('changekind', 'movedFrom'))
-		self._pattMovedTo = re.compile(self._config.get('changekind', 'movedTo'))
+		self._planType |= basic.Parser.PLAN_CANCELED | basic.Parser.PLAN_FILLIN | basic.Parser.PLAN_REGULAR
+		self._planType |= basic.Parser.PLAN_OUTTEACHER | basic.Parser.PLAN_YARDDUTY
 
 	def preParse(self, transaction=None):
 		if self._config.has_option('parser-untis', 'encoding'):
@@ -419,7 +411,7 @@ class UntisParser(BasicParser):
 			reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE)
 			for row in reader:
 				pd = TimeFrame.fromList(row)
-				UntisParser.timeFrames.append(pd)
+				Parser.timeFrames.append(pd)
 
 	def parseClasses(self, fileName):
 		with open(fileName, newline='', encoding=self._encoding) as csvfile:
@@ -592,7 +584,7 @@ class UntisParser(BasicParser):
 		encTeachers = self._teacherList.serialize()
 		encSubjects = self._subjectList.serialize()
 		encRooms = self._roomList.serialize()
-		encTimeframes = UntisParser.timeFrames.serialize()
+		encTimeframes = Parser.timeFrames.serialize()
 		return {
 			'stand': self._stand,
 			'plan': planEntries,

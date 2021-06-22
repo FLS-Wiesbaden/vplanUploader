@@ -234,11 +234,13 @@ class SubjectList(EntityList):
 class RoomList(EntityList):
 	pass
 
-class BasicParser(QObject):
+class Parser(QObject):
 
 	planFileLoaded = pyqtSignal()
 	planParserPrepared = pyqtSignal()
 	planParsed = pyqtSignal(bool)
+
+	EXTENSIONS = []
 
 	PLAN_FILLIN = 1
 	PLAN_CANCELED = 2
@@ -247,13 +249,15 @@ class BasicParser(QObject):
 	PLAN_ADDITIONAL = 16
 	PLAN_REGULAR = 32
 
-	def __init__(self, config, parsingFile):
+	def __init__(self, config, errorDialog, parsingFile):
 		super().__init__()
 		self._config = config
 		self._parsingFile = parsingFile
 		self._fileContent = None
 		self._planType = 0
 		self._encoding = None
+		self._errorDialog = errorDialog
+		self._stand = None
 
 	def loadFile(self, transaction=None, encoding=None):
 		try:

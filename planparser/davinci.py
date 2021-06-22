@@ -13,7 +13,7 @@ import hashlib
 import datetime
 from codecs import BOM_UTF8
 from planparser import basic
-from planparser.basic import BasicParser, ChangeEntry
+from planparser.basic import ChangeEntry
 from planparser.basic import DuplicateItem, SuperseedingItem, SkippedItem
 
 class TimeFrame(basic.TimeFrame):
@@ -64,11 +64,12 @@ class ClassAbsentReason(object):
 		)
 		return self
 
-class DavinciJsonParser(BasicParser):
+class Parser(basic.Parser):
+
+	EXTENSIONS = ['.json']
 
 	def __init__(self, config, errorDialog, parsingFile):
-		super().__init__(config, parsingFile)
-		self._errorDialog = errorDialog
+		super().__init__(config, errorDialog, parsingFile)
 		self._standin = []
 		self._absentClasses = []
 		self._absentTeacher = []
@@ -78,8 +79,6 @@ class DavinciJsonParser(BasicParser):
 		self._teacherList = basic.TeacherList()
 		self._subjectList = basic.SubjectList()
 		self._roomList = basic.RoomList()
-		self._stand = None
-
 		# Master data.
 		self._timeFramesPupil = basic.Timetable()
 		self._timeFramesDuty = basic.Timetable()
@@ -88,8 +87,8 @@ class DavinciJsonParser(BasicParser):
 
 		# With the json interface of DaVinci 6, we support mostly all features.
 		# So here we set the default flags.
-		self._planType = self._planType | BasicParser.PLAN_CANCELED | BasicParser.PLAN_FILLIN
-		self._planType = self._planType | BasicParser.PLAN_OUTTEACHER | BasicParser.PLAN_YARDDUTY
+		self._planType = self._planType | basic.Parser.PLAN_CANCELED | basic.Parser.PLAN_FILLIN
+		self._planType = self._planType | basic.Parser.PLAN_OUTTEACHER | basic.Parser.PLAN_YARDDUTY
 
 		# some patterns (better don't ask which possibilities we have).
 		self._pattMovedFrom = re.compile(self._config.get('changekind', 'movedFrom'))
@@ -227,7 +226,7 @@ class DavinciJsonParser(BasicParser):
 				while absentStart < absentEnd:
 					entryDate = absentStart.strftime('%d.%m.%Y')
 
-					self._planType = self._planType | BasicParser.PLAN_CANCELED
+					self._planType = self._planType | basic.Parser.PLAN_CANCELED
 					newEntry = ChangeEntry([entryDate], 2, ChangeEntry.CHANGE_TYPE_CANCELLED)
 					newEntry._hours = [{
 						'hour': 0,
@@ -277,7 +276,7 @@ class DavinciJsonParser(BasicParser):
 				while absentStart <= absentEnd:
 					entryDate = absentStart.strftime('%d.%m.%Y')
 
-					self._planType = self._planType | BasicParser.PLAN_OUTTEACHER
+					self._planType = self._planType | basic.Parser.PLAN_OUTTEACHER
 					newEntry = ChangeEntry([entryDate], 8, ChangeEntry.CHANGE_TYPE_TEACHER_AWAY)
 					newEntry._hours = [basic.TimeFrame(
 						hour=0,
@@ -303,7 +302,7 @@ class DavinciJsonParser(BasicParser):
 					absentStart += datetime.timedelta(days=1)
 
 	def _parseChanges(self, les, newEntry):
-		self._planType = self._planType | BasicParser.PLAN_FILLIN
+		self._planType = self._planType | basic.Parser.PLAN_FILLIN
 
 		# substitution cancelled? 
 		if 'cancelled' in les['changes'].keys() and les['changes']['cancelled'] == 'substitutionCancelled':
@@ -587,11 +586,11 @@ class DavinciJsonParser(BasicParser):
 		# skip which don't have changes
 		if 'changes' in les.keys():
 			newEntry = self._parseChanges(les, newEntry)
-			newEntry._planType = BasicParser.PLAN_FILLIN
+			newEntry._planType = basic.Parser.PLAN_FILLIN
 			newEntry._chgType |= ChangeEntry.CHANGE_TYPE_STANDIN
 		else:
-			self._planType = self._planType | BasicParser.PLAN_REGULAR
-			newEntry._planType = BasicParser.PLAN_REGULAR
+			self._planType = self._planType | basic.Parser.PLAN_REGULAR
+			newEntry._planType = basic.Parser.PLAN_REGULAR
 			newEntry._chgType |= ChangeEntry.CHANGE_TYPE_REGULAR
 
 		# remove some kind of infos.
@@ -686,7 +685,7 @@ class DavinciJsonParser(BasicParser):
 				for dt in les['dates']:
 					entryDates.append('%s.%s.%s' % (dt[6:], dt[4:6], dt[:4]))
 
-				self._planType = self._planType | BasicParser.PLAN_YARDDUTY
+				self._planType = self._planType | basic.Parser.PLAN_YARDDUTY
 				newEntry = ChangeEntry(entryDates, 4, ChangeEntry.CHANGE_TYPE_DUTY)
 				newEntry._startTime = '%s:%s:00' % (les['startTime'][:2], les['startTime'][2:4])
 				newEntry._endTime = '%s:%s:00' % (les['endTime'][:2], les['endTime'][2:4])
