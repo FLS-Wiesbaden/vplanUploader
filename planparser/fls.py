@@ -7,6 +7,7 @@
 # @author Lukas Schreiner
 import time
 import csv
+from planparser import basic
 from planparser.basic import BasicParser, ChangeEntry
 
 class FlsCsvParser(BasicParser):
@@ -68,7 +69,7 @@ class FlsCsvParser(BasicParser):
 				newEntry = ChangeEntry([entryDate], 16, None)
 				tHours = []
 				for h in list(range(hours[0], hours[1] + 1)):
-					tHours.append({'hour': h, 'start': None, 'end': None})
+					tHours.append(basic.TimeFrame(hour=h))
 				newEntry._hours = tHours
 				newEntry._teacher = teacher
 				newEntry._subject = subject

@@ -23,9 +23,9 @@ class SkippedItem(Exception):
 
 class TimeFrame(object):
 
-	def __init__(self):
+	def __init__(self, hour=None):
 		self.weekday = 0
-		self.hour = None
+		self.hour = hour
 		self.start = None
 		self.end = None
 
