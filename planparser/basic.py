@@ -121,6 +121,28 @@ class Timetable(list):
 				timeObjects.append(to)
 
 		return timeObjects
+
+class Teacher(object):
+
+	def __init__(self, abbreviation=None, firstName=None, lastName=None, teacherId=None):
+		self.id = teacherId
+		self.abbreviation = abbreviation
+		self.firstName = firstName
+		self.lastName = lastName
+
+	def __str__(self):
+		return self.abbreviation
+
+	def __repr__(self):
+		return '<Teacher abbreviation={:s}>'.format(self.abbreviation)
+
+	def serialize(self):
+		return {
+			'firstname': self.firstName,
+			'lastname': self.lastName,
+			'abbreviation': self.abbreviation
+		}
+
 class BasicParser(QObject):
 
 	planFileLoaded = pyqtSignal()

@@ -53,19 +53,7 @@ class Subject(object):
 	def fromList(cls, data):
 		return cls(data[0], data[1])
 
-class Teacher(object):
-
-	def __init__(self, name, lastname=None, firstname=None):
-		self.name = name
-		self.lastname = lastname
-		self.firstname = firstname
-
-	def serialize(self):
-		return {
-			'firstname': self.firstname,
-			'lastname': self.lastname,
-			'abbreviation': self.name
-		}
+class Teacher(basic.Teacher):
 	
 	@classmethod
 	def fromList(cls, data):

@@ -103,34 +103,6 @@ class TeacherList(object):
 	def serialize(self):
 		return [cl.serialize() for cl in self._list]
 
-class Teacher(object):
-
-	def __init__(self, tId, abbrev):
-		self._id = tId
-		self._abbreviation = abbrev
-		self._firstName = None
-		self._lastName = None
-
-	def setName(self, firstName, lastName):
-		self._firstName = firstName
-		self._lastName = lastName
-
-	def getAbbreviation(self):
-		return self._abbreviation
-
-	def getId(self):
-		return self._id
-
-	def __str__(self):
-		return self._abbreviation
-
-	def serialize(self):
-		return {
-			'firstname': self._firstName,
-			'lastname': self._lastName,
-			'abbreviation': self._abbreviation
-		}
-
 class SubjectList(object):
 
 	def __init__(self):
@@ -325,9 +297,10 @@ class DavinciJsonParser(BasicParser):
 
 		# build the teacher list
 		for tf in self._fileContent['result']['teachers']:
-			teacher = Teacher(tf['id'], tf['code'])
+			teacher = basic.Teacher(teacherId=tf['id'], abbreviation=tf['code'])
 			if 'firstName' in tf.keys() and 'lastName' in tf.keys():
-				teacher.setName(tf['firstName'], tf['lastName'])
+				teacher.firstName = tf['firstName']
+				teacher.lastName = tf['lastName']
 			self._teacherList.append(teacher)
 
 
