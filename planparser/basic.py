@@ -201,7 +201,7 @@ class SchoolClass(object):
 			'abbreviation': self.abbreviation
 		}
 
-class SchoolClassList(dict):
+class EntityList(dict):
 
 	def append(self, entry):
 		self[entry.abbreviation] = entry
@@ -218,6 +218,15 @@ class SchoolClassList(dict):
 				return f
 
 		return None
+
+	def serialize(self):
+		return [ cl.serialize() for cl in self.values() ]
+
+class SchoolClassList(EntityList):
+	pass
+
+class TeacherList(EntityList):
+	pass
 
 class BasicParser(QObject):
 

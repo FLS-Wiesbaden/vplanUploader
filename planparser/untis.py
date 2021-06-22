@@ -331,7 +331,7 @@ class UntisParser(BasicParser):
 		self._absentDetails = {}
 		self._classList = basic.SchoolClassList()
 		self._roomList = {}
-		self._teacherList = {}
+		self._teacherList = basic.TeacherList()
 		self._subjectList = {}
 		self._lessonList = LessonList()
 		UntisParser.timeFrames = basic.Timetable()
@@ -591,7 +591,8 @@ class UntisParser(BasicParser):
 		for f in planObjects:
 			planEntries.extend(f.asDict())
 
-		encTeachers = [ t.serialize() for t in self._teacherList.values() ]
+		encClasses = self._classList.serialize()
+		encTeachers = self._teacherList.serialize()
 		encSubjects = [ t.serialize() for t in self._subjectList.values() ]
 		encRooms = [ t.serialize() for t in self._roomList.values() ]
 		encTimeframes = UntisParser.timeFrames.serialize()
@@ -599,7 +600,7 @@ class UntisParser(BasicParser):
 			'stand': self._stand,
 			'plan': planEntries,
 			'ptype': self._planType,
-			'class': list(self._classList.keys()),
+			'class': encClasses,
 			'teacher': encTeachers,
 			'subjects': encSubjects,
 			'rooms': encRooms,
@@ -610,6 +611,7 @@ class UntisParser(BasicParser):
 			'hashes': {
 				'pupil': hashlib.sha256(json.dumps(encTimeframes).encode('utf-8')).hexdigest(),
 			#	'duty': hashlib.sha256(json.dumps(self._timeFramesDuty.serialize()).encode('utf-8')).hexdigest(),
+				'classes': hashlib.sha256(json.dumps(encClasses).encode('utf-8')).hexdigest(),
 				'teacher': hashlib.sha256(json.dumps(encTeachers).encode('utf-8')).hexdigest(),
 				'subjects': hashlib.sha256(json.dumps(encSubjects).encode('utf-8')).hexdigest(),
 				'rooms': hashlib.sha256(json.dumps(encRooms).encode('utf-8')).hexdigest()

@@ -16,37 +16,6 @@ from planparser import basic
 from planparser.basic import BasicParser, ChangeEntry
 from planparser.basic import DuplicateItem, SuperseedingItem, SkippedItem
 
-class TeacherList(object):
-
-	def __init__(self):
-		self._list = []
-
-	def append(self, cl):
-		self._list.append(cl)
-
-	def remove(self, cl):
-		self._list.remove(cl)
-
-	def findById(self, cId):
-		for f in self._list:
-			if f.getId() == cId:
-				return f
-
-		return None
-
-	def findByAbbreviation(self, abbrev):
-		for f in self._list:
-			if f.getAbbreviation() == abbrev:
-				return f
-
-		return None
-
-	def getList(self):
-		return [cl.getAbbreviation() for cl in self._list]
-
-	def serialize(self):
-		return [cl.serialize() for cl in self._list]
-
 class SubjectList(object):
 
 	def __init__(self):
@@ -137,7 +106,7 @@ class DavinciJsonParser(BasicParser):
 		self._supervision = []
 		self._absentDetails = {}
 		self._classList = basic.SchoolClassList()
-		self._teacherList = TeacherList()
+		self._teacherList = basic.TeacherList()
 		self._subjectList = SubjectList()
 		self._roomList = []
 		self._stand = None
@@ -298,7 +267,7 @@ class DavinciJsonParser(BasicParser):
 					}]
 					newEntry._startTime = '00:00:00'
 					newEntry._endTime = '23:59:59'
-					course = self._classList.findClassById(les['classRef'])
+					course = self._classList.findById(les['classRef'])
 					if course is None:
 						self.dlg.addData(pprint.pformat(les))
 						self.dlg.addError('Course unknown for absent course - skipping!')
@@ -796,13 +765,15 @@ class DavinciJsonParser(BasicParser):
 		for f in planObjects:
 			planEntries.extend(f.asDict())
 
+		encClasses = self._classList.serialize()
+		encTeachers = self._teacherList.serialize()
 		encRooms = [ t.serialize() for t in self._roomList.values() ]
 		return {
 			'stand': self._stand,
 			'plan': planEntries,
 			'ptype': self._planType,
-			'class': list(self._classList.keys()),
-			'teacher': self._teacherList.serialize(),
+			'class': encClasses,
+			'teacher': encTeachers,
 			'subjects': self._subjectList.serialize(),
 			'rooms': encRooms,
 			'timeframes': {
@@ -812,7 +783,8 @@ class DavinciJsonParser(BasicParser):
 			'hashes': {
 				'pupil': hashlib.sha256(json.dumps(self._timeFramesPupil.serialize()).encode('utf-8')).hexdigest(),
 				'duty': hashlib.sha256(json.dumps(self._timeFramesDuty.serialize()).encode('utf-8')).hexdigest(),
-				'teacher': hashlib.sha256(json.dumps(self._teacherList.serialize()).encode('utf-8')).hexdigest(),
+				'classes': hashlib.sha256(json.dumps(encClasses).encode('utf-8')).hexdigest(),
+				'teacher': hashlib.sha256(json.dumps(encTeachers).encode('utf-8')).hexdigest(),
 				'subjects': hashlib.sha256(json.dumps(self._subjectList.serialize()).encode('utf-8')).hexdigest(),
 				'rooms': hashlib.sha256(json.dumps(encRooms).encode('utf-8')).hexdigest()
 			}
