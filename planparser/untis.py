@@ -127,6 +127,7 @@ class Lesson(object):
 				ce._subject = self.subject
 				ce._room = self.room
 				ce._course.append(self.className)
+				ce._courseRef = str(self.untisNumber)
 				# now check if there is any substitution
 				substitutionFound = False
 				for les in lessonList.find(self.weekday, self.hour, \
