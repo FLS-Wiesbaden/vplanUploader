@@ -5,6 +5,8 @@
 # parser.
 #
 # @author Lukas Schreiner
+import hashlib
+import json
 import time
 import csv
 from planparser import basic
@@ -19,7 +21,7 @@ class Parser(basic.Parser):
 		self._classList = basic.SchoolClassList()
 		self._plan = []
 		self._planRows = []
-		self._planType = self._planType | basic.Parser.PLAN_ADDITIONAL
+		self._planType |= basic.Parser.PLAN_ADDITIONAL
 
 	@staticmethod
 	def isResponsible(extension):
@@ -70,7 +72,7 @@ class Parser(basic.Parser):
 					print('Got error: %s' % (e,))
 					continue
 
-				newEntry = ChangeEntry([entryDate], 16, None)
+				newEntry = ChangeEntry([entryDate], basic.Parser.PLAN_ADDITIONAL, ChangeEntry.CHANGE_TYPE_ADD_INFO)
 				tHours = []
 				for h in list(range(hours[0], hours[1] + 1)):
 					tHours.append(basic.TimeFrame(hour=h))
@@ -100,9 +102,13 @@ class Parser(basic.Parser):
 		for f in self._plan:
 			planEntries.extend(f.asDict())
 
+		encClasses = self._classList.serialize()
 		return {
 			'stand': self._stand,
 			'plan': planEntries,
 			'ptype': self._planType,
-			'class': self._classList
+			'class': encClasses,
+			'hashes': {
+				'classes': hashlib.sha256(json.dumps(encClasses).encode('utf-8')).hexdigest()
+			}
 		}
