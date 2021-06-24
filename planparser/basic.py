@@ -23,8 +23,8 @@ class SkippedItem(Exception):
 
 class TimeFrame(object):
 
-	def __init__(self, hour=None, start=None, end=None):
-		self.weekday = 0
+	def __init__(self, hour=None, start=None, end=None, weekday=0):
+		self.weekday = weekday
 		self.hour = hour
 		self.start = start
 		self.end = end
@@ -100,6 +100,21 @@ class Timetable(list):
 
 	def serialize(self):
 		return [ t[1].serialize() for t in self ]
+
+	@classmethod
+	def generateYardduties(cls, data):
+		self = cls()
+		lastEntry = None
+		for sk, entry in data:
+			if lastEntry and \
+				lastEntry.weekday == entry.weekday and \
+				lastEntry.end != entry.start:
+				tf = TimeFrame(entry.hour, lastEntry.end, entry.start, entry.weekday)
+				self.append(tf)
+
+			lastEntry = entry
+
+		return self
 
 	def find(self, weekday, hour):
 		key = '{:d}-{:d}'.format(weekday, hour)

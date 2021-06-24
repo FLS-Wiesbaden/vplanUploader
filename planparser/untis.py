@@ -293,6 +293,26 @@ class Supervision(object):
 		# 2 = cancelled supervision
 		self.flag = 0
 
+	def isStandin(self):
+		return self.flag > 0
+
+	def generateEntry(self):
+		ct = basic.ChangeEntry.CHANGE_TYPE_DUTY if self.flag > 0 else 0
+		if self.flag == 2:
+			ct |= basic.ChangeEntry.CHANGE_TYPE_FREE
+		wd = int(self.date.strftime('%w'))
+		hourObj = Parser.timeFramesDuty.find(wd, self.hour)
+		ce = ChangeEntry([self.date.strftime('%d.%m.%Y')], basic.Parser.PLAN_YARDDUTY, ct)
+		ce._hours = [hourObj]
+		ce._startTime = hourObj.start
+		ce._endTime = hourObj.end
+		ce._info = self.corridor
+		ce._room = self.corridor
+		ce._teacher = self.teacher
+		ce._changeTeacher = self.standinTeacher
+
+		return ce
+
 	@classmethod
 	def fromList(cls, data):
 		self = cls()
@@ -320,6 +340,7 @@ class TimeFrame(basic.TimeFrame):
 
 class Parser(basic.Parser):
 	timeFrames: basic.Timetable = None
+	timeFramesDuty: basic.Timetable = None
 
 	EXTENSIONS = ['.txt']
 
@@ -337,6 +358,7 @@ class Parser(basic.Parser):
 		self._subjectList = basic.SubjectList()
 		self._lessonList = LessonList()
 		Parser.timeFrames = basic.Timetable()
+		Parser.timeFramesDuty = None
 
 		self._path = os.path.dirname(self._parsingFile)
 		self._files = {
@@ -414,6 +436,9 @@ class Parser(basic.Parser):
 				pd = TimeFrame.fromList(row)
 				Parser.timeFrames.append(pd)
 
+		# generate yard duties times.
+		Parser.timeFramesDuty = Parser.timeFrames.generateYardduties(Parser.timeFrames)
+
 	def parseClasses(self, fileName):
 		with open(fileName, newline='', encoding=self._encoding) as csvfile:
 			reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE)
@@ -464,7 +489,8 @@ class Parser(basic.Parser):
 			reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE)
 			for row in reader:
 				pd = Supervision.fromList(row)
-				#self._teacherList[pd.name] = pd
+				if pd.isStandin():
+					self._supervision.append(pd.generateEntry())
 
 	def parseStandin(self, fileName):
 		"""Parses file "substitution.txt"
@@ -586,6 +612,7 @@ class Parser(basic.Parser):
 		encSubjects = self._subjectList.serialize()
 		encRooms = self._roomList.serialize()
 		encTimeframes = Parser.timeFrames.serialize()
+		encTimeframesDuty = Parser.timeFramesDuty.serialize()
 		return {
 			'stand': self._stand,
 			'plan': planEntries,
@@ -596,11 +623,11 @@ class Parser(basic.Parser):
 			'rooms': encRooms,
 			'timeframes': {
 				'pupil': encTimeframes,
-			#	'duty': self._timeFramesDuty.serialize()
+				'duty': encTimeframesDuty
 			},
 			'hashes': {
 				'pupil': hashlib.sha256(json.dumps(encTimeframes).encode('utf-8')).hexdigest(),
-			#	'duty': hashlib.sha256(json.dumps(self._timeFramesDuty.serialize()).encode('utf-8')).hexdigest(),
+				'duty': hashlib.sha256(json.dumps(encTimeframesDuty).encode('utf-8')).hexdigest(),
 				'classes': hashlib.sha256(json.dumps(encClasses).encode('utf-8')).hexdigest(),
 				'teacher': hashlib.sha256(json.dumps(encTeachers).encode('utf-8')).hexdigest(),
 				'subjects': hashlib.sha256(json.dumps(encSubjects).encode('utf-8')).hexdigest(),
