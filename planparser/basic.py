@@ -430,7 +430,12 @@ class ChangeEntry(object):
 		elif self._dates[0] > other._dates[0]:
 			return False
 
-		# same day, hour?
+		# same day, same room, same class?
+		if self._course and other._course and \
+			self._course[0] < other._course[0]:
+			return True
+
+		# same day, same class, hour?
 		if not self._hours and not other._hours:
 			return False
 		elif not self._hours:
@@ -441,11 +446,6 @@ class ChangeEntry(object):
 			return True
 		elif self._hours[0] > other._hours[0]:
 			return False
-
-		# same day, same hour, same room, same class?
-		if self._course and other._course and \
-			self._course[0] < other._course[0]:
-			return True
 
 		return False
 

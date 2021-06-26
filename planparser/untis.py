@@ -92,6 +92,9 @@ class Lesson(object):
 	def isMainEntry(self):
 		return self.flag == 0 or self.flag == 1
 
+	def isCancelledSubentry(self):
+		return self.flag == 1 and 'x' in self.weekFlags and not self.className
+
 	@property
 	def sortkey(self):
 		return '{:d}-{:d}-{:s}-{:d}'.format(
@@ -143,7 +146,8 @@ class Lesson(object):
 					if self.room != les.room:
 						ce._changeRoom = les.room
 						ce._chgType |= ChangeEntry.CHANGE_TYPE_ROOM
-				if not substitutionFound and occ == 'x':
+				if self.flag == 1 or \
+					(not substitutionFound and occ == 'x'):
 					ce._chgType |= ChangeEntry.CHANGE_TYPE_FREE
 					ce._chgType |= ChangeEntry.CHANGE_TYPE_STANDIN
 					ce._planType |= basic.Parser.PLAN_FILLIN
@@ -185,6 +189,27 @@ class LessonList(list):
 	def sort(self):
 		super().sort(key=lambda r: r[0])
 		self._keys = [ r[0] for r in self ]
+
+	def merge(self, item):
+		for k,les in self:
+			if les.weekday == item.weekday and \
+				les.hour == item.hour and \
+				les.lineNumber == item.lineNumber and \
+				les.teacher == item.teacher and \
+				les.subject == item.subject and \
+				les.flag != item.flag and \
+				les.untisNumber == item.untisNumber:
+				idx = 0
+				while True:
+					try:
+						idx = item.weekFlags.index('x', idx)
+					except ValueError:
+						break
+					else:
+						if les.weekFlags[idx] == '0':
+							les.weekFlags = les.weekFlags[:idx] + 'x' + les.weekFlags[idx+1:]
+						idx += 1
+				break
 
 	def find(self, weekday, hour, className, lineNumber, week=None, \
 		skipMainEntry=False):
@@ -464,15 +489,18 @@ class Parser(basic.Parser):
 				self._teacherList.append(Teacher.fromList(row))
 
 	def parseLessons(self, fileName):
-		dt = datetime.datetime(2021, 6, 22)
-
 		with open(fileName, newline='', encoding=self._encoding) as csvfile:
 			reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE)
 			for row in reader:
 				pd = Lesson.fromList(row)
-				self._lessonList.append(pd)
+				if not pd.isCancelledSubentry():
+					self._lessonList.append(pd)
+				else:
+					# find and merge the right one.
+					self._lessonList.merge(pd)
 
 		self._lessonList.sort()
+		dt = datetime.datetime.now()
 		genWeeks = 2
 		try:
 			genWeeks = int(self._config.get('parser-untis', 'weeks'))
@@ -483,6 +511,34 @@ class Parser(basic.Parser):
 				self._standin.append(x)
 
 		self._standin.sort()
+		
+		hf = {}
+		for x in self._standin:
+			sk = '{:s}-{:s}'.format(
+				x._dates[0],
+				x._course[0]
+			)
+			if not (x._chgType & ChangeEntry.CHANGE_TYPE_FREE) == ChangeEntry.CHANGE_TYPE_FREE and \
+				not (x._chgType & ChangeEntry.CHANGE_TYPE_CANCELLED) == ChangeEntry.CHANGE_TYPE_CANCELLED:
+				add = 1
+			else:
+				add = 0
+			try:
+				hf[sk] += add
+			except KeyError:
+				hf[sk] = add
+
+		for k,v in hf.items():
+			if v == 0:
+				dt, cn = k.split('-', 1)
+				ce = ChangeEntry([dt], basic.Parser.PLAN_CANCELED, ChangeEntry.CHANGE_TYPE_CANCELLED)
+				ce._course = [cn]
+				ce._hours = [basic.TimeFrame(
+					hour=0,
+					start='000000',
+					end='235959'
+				)]
+				self._absentClasses.append(ce)
 
 	def parseSupervisions(self, fileName):
 		with open(fileName, newline='', encoding=self._encoding) as csvfile:
@@ -529,6 +585,8 @@ class Parser(basic.Parser):
 						substList.append(pd)
 		
 		# check every substitution whether we have notes we must attach.
+		# FIXME: validate better option. As per last test file of FLS,
+		# the "to" can be retrieved from column R and "from" of column Q
 		now = datetime.datetime.now()
 		for sub in substList:
 			dt = sub.getDate()
