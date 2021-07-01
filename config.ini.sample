@@ -17,7 +17,7 @@ maxBreadcrumbs: 50
 debug: False
 pii: False
 sampleRate: 1.0
-tracesSampleRate: 1.0
+tracesSampleRate: 0.1
 environment: production
 
 [parser-davinci]
