@@ -466,6 +466,7 @@ class Parser(basic.Parser):
 				# skip those which do not have same key
 				if 'lessonRef' not in subles.keys() or \
 					subles['lessonRef'] != les['lessonRef'] or \
+					'courseRef' not in subles.keys() or \
 					subles['courseRef'] != les['courseRef'] or \
 					subles['startTime'] != les['startTime'] or \
 					subles['dates'] != les['dates'] or \
@@ -505,7 +506,11 @@ class Parser(basic.Parser):
 		newEntry._startTime = '%s:%s:00' % (les['startTime'][:2], les['startTime'][2:4])
 		newEntry._endTime = '%s:%s:00' % (les['endTime'][:2], les['endTime'][2:4])
 		newEntry._hours = self._timeFramesPupil.findByTime(les['startTime'], les['endTime'])
-		newEntry._courseRef = les['courseRef']
+		try:
+			newEntry._courseRef = les['courseRef']
+		except KeyError:
+			pass
+
 		if len(newEntry._hours) <= 0:
 			self._errorDialog.addData(pprint.pformat(les))
 			self._errorDialog.addError(
@@ -698,7 +703,7 @@ class Parser(basic.Parser):
 				newEntry = ChangeEntry(entryDates, 4, ChangeEntry.CHANGE_TYPE_DUTY)
 				newEntry._startTime = '%s:%s:00' % (les['startTime'][:2], les['startTime'][2:4])
 				newEntry._endTime = '%s:%s:00' % (les['endTime'][:2], les['endTime'][2:4])
-				newEntry._hours = self._timeFramesDuty.getMatchingEntries(les['startTime'], les['endTime'])
+				newEntry._hours = self._timeFramesDuty.findByTime(les['startTime'], les['endTime'])
 
 				# supervisionTitle disabled, because it is modified depending on the change:
 				# e.g. Atrium ==> +SCLO (Atrium)
