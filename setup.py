@@ -118,6 +118,7 @@ buildOpts = {
 		'PyQt5.QtNetwork', 'PyQt5.sip', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets', 'PyQt5', 
 		'sip'
 	],
+	'packages': ['planparser'],
 	'include_msvcr': True,
 	'includes': [
 		'queue', 'sentry_sdk.integrations.logging', 'sentry_sdk.integrations.stdlib', 
