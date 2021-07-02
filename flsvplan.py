@@ -8,7 +8,7 @@ standin plans for the FLS Wiesbaden framework.
 """
 
 __all__ = []
-__version__ = '4.36'
+__version__ = '4.37-alpha.0'
 __author__ = 'Lukas Schreiner'
 
 import urllib.parse
