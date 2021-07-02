@@ -427,6 +427,38 @@ class Parser(basic.Parser):
 		# if a change type is set to 6 = free and we do not have any
 		# change type defined yet, take it!
 		if not newEntry._chgType and 'changeType' in les['changes'] and les['changes']['changeType'] == 6:
+			""" WAIT, it does not mean, that EVERYONE has free (maybe, maybe not).
+				E.g.: Only course 11BG6 has free here!
+				{
+				"courseTitle": "RKA",
+				"lessonRef": "24519990-B5D9-43E1-AFAE-213A5C96EB41",
+				"lessonBlock": "Reli11c.1",
+				"courseRef": "0E303A22-BD4C-496A-A4C5-F76530C7A7F5",
+				"dates": [
+					"20210702"
+				],
+				"startTime": "1115",
+				"endTime": "1245",
+				"subjectCode": "RKA",
+				"classCodes": [
+					"11BG1",
+					"11BG2",
+					"11BG6",
+					"11BG7"
+				],
+				"teacherCodes": [
+					"HITZ"
+				],
+				"roomCodes": [
+					"C100"
+				],
+				"changes": {
+					"changeType": 6,
+					"absentClassCodes": [
+						"11BG6"
+					]
+				}
+			} """
 			newEntry._chgType |= ChangeEntry.CHANGE_TYPE_FREE
 			# if the info + notes field is empty, lets populate the field by our own:
 			if not newEntry._info and not newEntry._note:
