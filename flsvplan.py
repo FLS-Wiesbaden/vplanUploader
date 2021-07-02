@@ -8,7 +8,7 @@ standin plans for the FLS Wiesbaden framework.
 """
 
 __all__ = []
-__version__ = '4.34'
+__version__ = '4.36'
 __author__ = 'Lukas Schreiner'
 
 import urllib.parse
@@ -23,6 +23,7 @@ import configparser
 import shutil
 import pickle
 import requests
+import glob
 from requests.auth import HTTPBasicAuth
 from threading import Thread
 from datetime import datetime
@@ -31,8 +32,8 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot, QObject
 from PyQt5.QtGui import QIcon
 from searchplaner import SearchPlaner
 from errorlog import ErrorDialog
-from planparser.fls import FlsCsvParser
-from planparser.davinci import DavinciJsonParser
+from planparser import getParser
+from planparser.untis import Parser as UntisParser
 import sentry_sdk
 
 # absolute hack, but required for cx_Freeze to work properly.
@@ -101,6 +102,11 @@ class Vertretungsplaner(QObject):
 		timeout = 10000
 		self.message.emit(title, msg, trayIcon, timeout)
 
+	def getHandler(self, fileName):
+		extension = os.path.splitext(fileName)[-1].lower()
+		ptype = self.config.get('vplan', 'type')
+		return getParser(extension, self.config)
+
 	@pyqtSlot()
 	def getNewFiles(self):
 		print('Starte suche...')
@@ -130,13 +136,7 @@ class Vertretungsplaner(QObject):
 			print("\nChanged/Added new Files: ", ", ".join(todo))
 			for f in todo:
 				f = f.strip()
-				handler = None
-				if self.config.get('vplan', 'type') == 'daVinci':
-					if int(self.config.get('vplan', 'version')) == 6:
-						if f.lower().endswith('.csv'):
-							handler = FlsCsvParser
-						elif f.lower().endswith('.json'):
-							handler = DavinciJsonParser
+				handler = self.getHandler(f)
 				
 				if handler:
 					transName = '{}_{}_{}'.format(
@@ -151,16 +151,19 @@ class Vertretungsplaner(QObject):
 							sentry_sdk.capture_exception(e)
 							self.showError(
 								'Neuer Vertretungsplan', 
-								'Vertretungsplan konnte nicht verarbeitet \
-								werden,	weil die Datei fehlerhaft ist.'
+								'Vertretungsplan konnte nicht verarbeitet ' + \
+								'werden, weil die Datei fehlerhaft ist.'
 							)
 							print('Error: %s' % (str(e),))
 							traceback.print_exc()
 							self.dlg.addError(str(e))
-							self.showDlg.emit()
+							#FIXME: self.showDlg.emit()
 							raise
 					print('Ending transaction {}'.format(transName))
 					transaction.finish()
+					# for untis, we parse only the first one!
+					if handler.onlyFirstFile():
+						break
 				else:
 					print('"%s" will be ignored.' % (f,))
 
@@ -374,6 +377,13 @@ class Vertretungsplaner(QObject):
 		if self.config.get('options', 'delUpFile') == 'True' and os.path.exists(path):
 			print('Delete uploaded file %s' % (path))
 			os.remove(path)
+		folderPath = os.path.dirname(path)
+		if self.config.get('options', 'delFolder') == 'True' and os.path.exists(folderPath):
+			for filename in glob.iglob(folderPath + '/*'):
+				try:
+					os.remove(filename)
+				except:
+					pass
 
 		self.lastFile = newFile
 

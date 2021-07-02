@@ -5,20 +5,27 @@
 # parser.
 #
 # @author Lukas Schreiner
+import hashlib
+import json
 import time
 import csv
-from planparser.basic import BasicParser, ChangeEntry
+from planparser import basic
+from planparser.basic import ChangeEntry
 
-class FlsCsvParser(BasicParser):
+class Parser(basic.Parser):
+
+	EXTENSIONS = ['.csv']
 
 	def __init__(self, config, errorDialog, parsingFile):
-		super().__init__(config, parsingFile)
-		self._errorDialog = errorDialog
-		self._classList = []
+		super().__init__(config, errorDialog, parsingFile)
+		self._classList = basic.SchoolClassList()
 		self._plan = []
-		self._stand = None
 		self._planRows = []
-		self._planType = self._planType | BasicParser.PLAN_ADDITIONAL
+		self._planType |= basic.Parser.PLAN_ADDITIONAL
+
+	@staticmethod
+	def isResponsible(extension):
+		return extension in ['.csv']
 
 	def loadFile(self, transaction=None):
 		if self._config.has_option('parser-fls', 'encoding'):
@@ -65,20 +72,24 @@ class FlsCsvParser(BasicParser):
 					print('Got error: %s' % (e,))
 					continue
 
-				newEntry = ChangeEntry([entryDate], 16, None)
+				newEntry = ChangeEntry([entryDate], basic.Parser.PLAN_ADDITIONAL, ChangeEntry.CHANGE_TYPE_ADD_INFO)
 				tHours = []
 				for h in list(range(hours[0], hours[1] + 1)):
-					tHours.append({'hour': h, 'start': None, 'end': None})
+					tHours.append(basic.TimeFrame(hour=h))
+				className = className.strip()
 				newEntry._hours = tHours
 				newEntry._teacher = teacher
 				newEntry._subject = subject
 				newEntry._room = room
-				newEntry._course = [className.strip()]
+				newEntry._course = [className]
 				newEntry._info = info
 				newEntry._note = note
 				self._plan.append(newEntry)
-				if len(className.strip()) > 0 and className.strip() not in self._classList:
-					self._classList.append(className.strip())
+				if className:
+					try:
+						classObj = self._classList[className]
+					except KeyError:
+						self._classList.append(basic.SchoolClass(className))
 		except Exception as e:
 			self._errorDialog.addError('Could not parse the plan. Unexpected error occured: %s.' % (str(e),))
 			planParsedSuccessful = False
@@ -91,9 +102,13 @@ class FlsCsvParser(BasicParser):
 		for f in self._plan:
 			planEntries.extend(f.asDict())
 
+		encClasses = self._classList.serialize()
 		return {
 			'stand': self._stand,
 			'plan': planEntries,
 			'ptype': self._planType,
-			'class': self._classList
+			'class': encClasses,
+			'hashes': {
+				'classes': hashlib.sha256(json.dumps(encClasses).encode('utf-8')).hexdigest()
+			}
 		}

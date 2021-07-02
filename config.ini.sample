@@ -17,17 +17,29 @@ maxBreadcrumbs: 50
 debug: False
 pii: False
 sampleRate: 1.0
-tracesSampleRate: 1.0
+tracesSampleRate: 0.1
 environment: production
 
 [parser-davinci]
 encoding = utf-8
+extension = .json
+enabled = True
+filterweekend = False
 
 [parser-fls]
 encoding = iso-8859-1
+extension = .csv
+enabled = True
+
+[parser-untis]
+encoding = iso-8859-1
+weeks = 2
+extension = .txt
+enabled = True
 
 [options]
 delUpFile: True
+delFolder: True
 backupFiles: False
 ; below watch path...
 backupFolder: False
@@ -44,8 +56,8 @@ phost: 0.0.0.0
 pport: 80
 
 [vplan]
-; type can be "daVinci"
-type: daVinci
+; type can be "daVinci", "untis", "auto"
+type: auto
 ; version can be "5" or "6"
 version: 6
 ; colsep can be "\t", ";", ","
